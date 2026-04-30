@@ -13,6 +13,7 @@ Living file map for PoleskiPiano. Update before committing whenever files are ad
 - `package-lock.json` - NPM dependency lockfile for the Electron/React/Tone scaffold.
 - `package.json` - Project metadata, scripts, runtime dependencies, and dev dependencies.
 - `tsconfig.json` - Shared strict TypeScript configuration for Electron, renderer, and tests.
+- `vitest.config.ts` - Vitest configuration excluding build output, dependencies, Git internals, and nested in-repo worktrees from test discovery.
 
 ## docs/agents
 
