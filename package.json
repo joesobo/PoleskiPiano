@@ -1,0 +1,32 @@
+{
+  "name": "poleski-piano",
+  "version": "0.0.0",
+  "description": "Native MIDI piano practice app for a 37-key Launchkey-style keyboard.",
+  "private": true,
+  "type": "module",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "tsc --noEmit && electron-vite build",
+    "preview": "electron-vite preview",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@tonejs/piano": "0.2.1",
+    "tone": "14.9.17",
+    "webmidi": "2.5.3",
+    "react": "19.2.5",
+    "react-dom": "19.2.5"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@vitejs/plugin-react": "5.2.0",
+    "electron": "41.3.0",
+    "electron-vite": "5.0.0",
+    "typescript": "latest",
+    "vite": "7.3.2",
+    "vitest": "4.1.5"
+  }
+}
