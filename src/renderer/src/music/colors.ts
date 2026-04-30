@@ -38,26 +38,43 @@ export const flexoki = {
 export interface NoteColor {
   background: string;
   foreground: string;
+  family: string;
+}
+
+function pitchColor(
+  background: string,
+  foreground: string,
+  family: string,
+): NoteColor {
+  return {
+    background,
+    foreground,
+    family,
+  };
 }
 
 export const pitchClassColors: Record<PitchClass, NoteColor> = {
-  C: { background: flexoki.paper, foreground: flexoki.black },
-  "C#": { background: flexoki.red400, foreground: flexoki.black },
-  D: { background: flexoki.orange400, foreground: flexoki.black },
-  "D#": { background: flexoki.magenta600, foreground: flexoki.paper },
-  E: { background: flexoki.yellow400, foreground: flexoki.black },
-  F: { background: flexoki.green400, foreground: flexoki.black },
-  "F#": { background: flexoki.green600, foreground: flexoki.paper },
-  G: { background: flexoki.cyan400, foreground: flexoki.black },
-  "G#": { background: flexoki.blue600, foreground: flexoki.paper },
-  A: { background: flexoki.purple400, foreground: flexoki.black },
-  "A#": { background: flexoki.magenta400, foreground: flexoki.black },
-  B: { background: flexoki.base100, foreground: flexoki.black },
+  C: pitchColor(flexoki.red400, flexoki.black, "red"),
+  "C#": pitchColor(flexoki.cyan600, flexoki.paper, "cyan"),
+  D: pitchColor(flexoki.orange400, flexoki.black, "orange"),
+  "D#": pitchColor(flexoki.blue600, flexoki.paper, "blue"),
+  E: pitchColor(flexoki.yellow400, flexoki.black, "yellow"),
+  F: pitchColor(flexoki.green400, flexoki.black, "green"),
+  "F#": pitchColor(flexoki.purple600, flexoki.paper, "purple"),
+  G: pitchColor(flexoki.cyan400, flexoki.black, "cyan"),
+  "G#": pitchColor(flexoki.red600, flexoki.paper, "red"),
+  A: pitchColor(flexoki.blue400, flexoki.black, "blue"),
+  "A#": pitchColor(flexoki.orange600, flexoki.paper, "orange"),
+  B: pitchColor(flexoki.purple400, flexoki.black, "purple"),
 };
 
 export function noteCssVars(pitchClass: PitchClass): CSSProperties {
   const color = pitchClassColors[pitchClass];
 
+  return colorCssVars(color);
+}
+
+function colorCssVars(color: NoteColor): CSSProperties {
   return {
     "--note-color": color.background,
     "--note-text": color.foreground,

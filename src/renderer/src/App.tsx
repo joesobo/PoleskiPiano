@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChordDisplay } from "./components/ChordDisplay";
 import { PianoKeyboard } from "./components/PianoKeyboard";
-import { RecentTimeline, type RecentNote } from "./components/RecentTimeline";
 import { ScaleWheel } from "./components/ScaleWheel";
 import { StaffNotation } from "./components/StaffNotation";
-import { TopBar } from "./components/TopBar";
+import { TopBar, type ThemeMode } from "./components/TopBar";
 import { analyzeChord } from "./music/chords";
 import {
   buildKeyboardRange,
   DEFAULT_HIGH_MIDI,
   DEFAULT_LOW_MIDI,
+  mapMidiInputToKeyboardMidi,
   midiToNoteName,
   midiToPitchClass,
   pitchClassToSemitone,
@@ -17,17 +17,22 @@ import {
 } from "./music/notes";
 import {
   getScalePitchClasses,
-  type ScaleMode,
   type SelectedScale,
 } from "./music/scales";
-import { connectWebMidi, type MidiNoteEvent, type MidiStatus } from "./services/midi";
-import { PianoAudioEngine, type PianoAudioEngineSnapshot } from "./services/pianoAudio";
+import { orderTimedMidiNotesForStaff } from "./music/staff";
+import {
+  connectWebMidi,
+  type MidiNoteEvent,
+  type MidiStatus,
+} from "./services/midi";
+import { PianoAudioEngine } from "./services/pianoAudio";
 
 interface ActiveNote {
   midi: number;
   note: string;
   pitchClass: PitchClass;
   velocity: number;
+  receivedAt: number;
 }
 
 const keyboardKeys = buildKeyboardRange();
@@ -39,19 +44,14 @@ const initialMidiStatus: MidiStatus = {
 
 export function App(): React.ReactElement {
   const audioEngineRef = useRef(new PianoAudioEngine());
-  const [audioSnapshot, setAudioSnapshot] = useState<PianoAudioEngineSnapshot>(
-    audioEngineRef.current.getSnapshot(),
-  );
+  const activeNotesRef = useRef<Map<number, ActiveNote>>(new Map());
   const [midiStatus, setMidiStatus] = useState<MidiStatus>(initialMidiStatus);
   const [activeNotes, setActiveNotes] = useState<Map<number, ActiveNote>>(
     () => new Map(),
   );
-  const [recentNotes, setRecentNotes] = useState<RecentNote[]>([]);
   const [audioLevel, setAudioLevel] = useState(0);
-  const [selectedScale, setSelectedScale] = useState<SelectedScale>({
-    tonic: "C",
-    mode: "major",
-  });
+  const [selectedScale, setSelectedScale] = useState<SelectedScale | null>(null);
+  const [themeMode, setThemeMode] = useState<ThemeMode>("dark");
 
   const activeMidiNotes = useMemo(
     () => new Set(activeNotes.keys()),
@@ -61,9 +61,13 @@ export function App(): React.ReactElement {
     () => new Set([...activeNotes.values()].map((note) => note.pitchClass)),
     [activeNotes],
   );
-  const chordAnalysis = useMemo(
-    () => analyzeChord([...activeNotes.keys()]),
+  const orderedActiveMidiNotes = useMemo(
+    () => orderTimedMidiNotesForStaff([...activeNotes.values()]),
     [activeNotes],
+  );
+  const chordAnalysis = useMemo(
+    () => analyzeChord(orderedActiveMidiNotes),
+    [orderedActiveMidiNotes],
   );
   const scaleMidiNotes = useMemo(
     () => buildScaleMidiSet(selectedScale),
@@ -71,46 +75,38 @@ export function App(): React.ReactElement {
   );
 
   const handleMidiEvent = useCallback((event: MidiNoteEvent): void => {
-    if (event.midi < DEFAULT_LOW_MIDI || event.midi > DEFAULT_HIGH_MIDI) {
+    const midi = mapMidiInputToKeyboardMidi(event.midi);
+
+    if (midi < DEFAULT_LOW_MIDI || midi > DEFAULT_HIGH_MIDI) {
       return;
     }
 
     if (event.type === "noteon") {
-      const note = midiToNoteName(event.midi);
-      const pitchClass = midiToPitchClass(event.midi);
+      const note = midiToNoteName(midi);
+      const pitchClass = midiToPitchClass(midi);
 
-      audioEngineRef.current.noteOn(event.midi, event.velocity);
+      audioEngineRef.current.noteOn(midi, event.velocity);
       setAudioLevel(event.velocity);
-      setActiveNotes((current) => {
-        const next = new Map(current);
-        next.set(event.midi, {
-          midi: event.midi,
-          note,
-          pitchClass,
-          velocity: event.velocity,
-        });
-        return next;
+      const nextActiveNotes = new Map(activeNotesRef.current);
+
+      nextActiveNotes.set(midi, {
+        midi,
+        note,
+        pitchClass,
+        velocity: event.velocity,
+        receivedAt: event.receivedAt,
       });
-      setRecentNotes((current) =>
-        [
-          {
-            id: `${event.midi}-${event.receivedAt}-${Math.random()}`,
-            note,
-            pitchClass,
-            velocity: event.velocity,
-          },
-          ...current,
-        ].slice(0, 18),
-      );
+      activeNotesRef.current = nextActiveNotes;
+      setActiveNotes(nextActiveNotes);
       return;
     }
 
-    audioEngineRef.current.noteOff(event.midi);
-    setActiveNotes((current) => {
-      const next = new Map(current);
-      next.delete(event.midi);
-      return next;
-    });
+    audioEngineRef.current.noteOff(midi);
+    const nextActiveNotes = new Map(activeNotesRef.current);
+
+    nextActiveNotes.delete(midi);
+    activeNotesRef.current = nextActiveNotes;
+    setActiveNotes(nextActiveNotes);
   }, []);
 
   useEffect(() => {
@@ -149,26 +145,26 @@ export function App(): React.ReactElement {
   }, [audioLevel]);
 
   const enableAudio = useCallback(async (): Promise<void> => {
-    setAudioSnapshot({ status: "loading", message: "Loading piano" });
-    setAudioSnapshot(await audioEngineRef.current.initialize());
+    try {
+      await audioEngineRef.current.initialize();
+    } catch (error) {
+      console.warn("Audio unavailable", error);
+    }
   }, []);
 
+  useEffect(() => {
+    void enableAudio();
+  }, [enableAudio]);
+
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-theme={themeMode}>
       <TopBar
         midiStatus={midiStatus}
-        audioStatus={audioSnapshot.status}
-        audioMessage={audioSnapshot.message}
         audioLevel={audioLevel}
-        selectedTonic={selectedScale.tonic}
-        selectedMode={selectedScale.mode}
-        onTonicChange={(tonic) =>
-          setSelectedScale((current) => ({ ...current, tonic }))
-        }
-        onModeChange={(mode) =>
-          setSelectedScale((current) => ({ ...current, mode }))
-        }
-        onEnableAudio={enableAudio}
+        selectedScale={selectedScale}
+        themeMode={themeMode}
+        onScaleChange={setSelectedScale}
+        onThemeModeChange={setThemeMode}
       />
 
       <main className="practice-surface">
@@ -178,9 +174,8 @@ export function App(): React.ReactElement {
             activePitchClasses={activePitchClasses}
           />
           <ChordDisplay analysis={chordAnalysis} />
-          <StaffNotation activeMidiNotes={[...activeNotes.keys()]} />
+          <StaffNotation activeMidiNotes={orderedActiveMidiNotes} />
         </div>
-        <RecentTimeline notes={recentNotes} />
       </main>
 
       <PianoKeyboard
@@ -192,11 +187,20 @@ export function App(): React.ReactElement {
   );
 }
 
-function buildScaleMidiSet(scale: SelectedScale): Set<number> {
+function buildScaleMidiSet(scale: SelectedScale | null): Set<number> {
+  const midiNotes = new Set<number>();
+
+  if (!scale) {
+    for (let midi = DEFAULT_LOW_MIDI; midi <= DEFAULT_HIGH_MIDI; midi += 1) {
+      midiNotes.add(midi);
+    }
+
+    return midiNotes;
+  }
+
   const scaleSemitones = new Set(
     getScalePitchClasses(scale).map(pitchClassToSemitone),
   );
-  const midiNotes = new Set<number>();
 
   for (let midi = DEFAULT_LOW_MIDI; midi <= DEFAULT_HIGH_MIDI; midi += 1) {
     if (scaleSemitones.has(((midi % 12) + 12) % 12)) {

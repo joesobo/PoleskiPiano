@@ -27,6 +27,7 @@ export interface PianoKey {
 
 export const DEFAULT_LOW_MIDI = 36;
 export const DEFAULT_HIGH_MIDI = 72;
+export const DEFAULT_MIDI_INPUT_TRANSPOSE = -12;
 
 const BLACK_PITCH_CLASSES = new Set<PitchClass>([
   "C#",
@@ -68,6 +69,10 @@ export function noteNameToMidi(noteName: string): number {
   }
 
   return (Number(match[2]) + 1) * 12 + pitchClassToSemitone(pitchClass);
+}
+
+export function mapMidiInputToKeyboardMidi(midi: number): number {
+  return midi + DEFAULT_MIDI_INPUT_TRANSPOSE;
 }
 
 export function isBlackPitchClass(pitchClass: PitchClass): boolean {

@@ -15,6 +15,12 @@ const TREBLE_TOP = 54;
 const BASS_TOP = 218;
 const TREBLE_TOP_LINE_INDEX = diatonicIndex("F", 5);
 const BASS_TOP_LINE_INDEX = diatonicIndex("A", 3);
+const SIMULTANEOUS_NOTE_WINDOW_MS = 35;
+
+export interface TimedStaffMidiNote {
+  midi: number;
+  receivedAt: number;
+}
 
 export interface StaffNotePlacement {
   clef: "treble" | "bass";
@@ -33,11 +39,37 @@ export const staffMetrics = {
   height: 344,
 };
 
+export function orderTimedMidiNotesForStaff(
+  notes: TimedStaffMidiNote[],
+): number[] {
+  const orderedByOnset = [...notes].sort(
+    (left, right) => left.receivedAt - right.receivedAt || left.midi - right.midi,
+  );
+  const groups: TimedStaffMidiNote[][] = [];
+
+  for (const note of orderedByOnset) {
+    const current = groups.at(-1);
+
+    if (
+      current &&
+      note.receivedAt - current[0].receivedAt <= SIMULTANEOUS_NOTE_WINDOW_MS
+    ) {
+      current.push(note);
+      continue;
+    }
+
+    groups.push([note]);
+  }
+
+  return groups.flatMap((group) =>
+    group.sort((left, right) => left.midi - right.midi).map((note) => note.midi),
+  );
+}
+
 export function getStaffPlacements(midiNotes: number[]): StaffNotePlacement[] {
-  const sorted = [...midiNotes].sort((a, b) => a - b);
   const laneCounts = new Map<string, number>();
 
-  return sorted.map((midi, index) => {
+  return midiNotes.map((midi, index) => {
     const noteName = midiToNoteName(midi);
     const parsed = parseNoteName(noteName);
     const clef = midi >= 60 ? "treble" : "bass";

@@ -4,6 +4,7 @@ import {
   DEFAULT_HIGH_MIDI,
   DEFAULT_LOW_MIDI,
   getWhiteKeyCount,
+  mapMidiInputToKeyboardMidi,
   midiToNoteName,
   noteNameToMidi,
 } from "./notes";
@@ -19,6 +20,11 @@ describe("note mapping", () => {
     expect(noteNameToMidi("C2")).toBe(36);
     expect(noteNameToMidi("F#3")).toBe(54);
     expect(noteNameToMidi("C5")).toBe(72);
+  });
+
+  it("maps the 37-key controller octave down to the app keyboard range", () => {
+    expect(mapMidiInputToKeyboardMidi(48)).toBe(DEFAULT_LOW_MIDI);
+    expect(mapMidiInputToKeyboardMidi(84)).toBe(DEFAULT_HIGH_MIDI);
   });
 });
 

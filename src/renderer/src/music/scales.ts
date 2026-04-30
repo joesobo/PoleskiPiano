@@ -4,7 +4,9 @@ import {
   type PitchClass,
 } from "./notes";
 
-export type ScaleMode = "major" | "minor";
+export const SCALE_MODES = ["major", "minor"] as const;
+
+export type ScaleMode = (typeof SCALE_MODES)[number];
 
 export interface SelectedScale {
   tonic: PitchClass;

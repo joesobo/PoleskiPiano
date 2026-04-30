@@ -56,8 +56,8 @@ export function StaffNotation({
               <line
                 className="ledger-line"
                 key={lineY}
-                x1={placement.x - 25}
-                x2={placement.x + 25}
+                x1={placement.x - 30}
+                x2={placement.x + 30}
                 y1={lineY}
                 y2={lineY}
               />
@@ -66,8 +66,8 @@ export function StaffNotation({
               className="staff-note"
               cx={placement.x}
               cy={placement.y}
-              rx="23"
-              ry="15"
+              rx="21"
+              ry="10"
             />
             <text className="staff-note-label" x={placement.x} y={placement.y + 4}>
               {placement.label}

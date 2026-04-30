@@ -2,6 +2,7 @@ import { app, BrowserWindow, shell, session } from "electron";
 import { join } from "node:path";
 
 app.commandLine.appendSwitch("enable-features", "WebMidi");
+app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
 
 const isMac = process.platform === "darwin";
 

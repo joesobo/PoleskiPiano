@@ -4,7 +4,7 @@ import type { SelectedScale } from "../music/scales";
 import { getScalePitchClasses, SCALE_MODE_LABELS } from "../music/scales";
 
 interface ScaleWheelProps {
-  scale: SelectedScale;
+  scale: SelectedScale | null;
   activePitchClasses: Set<string>;
 }
 
@@ -12,17 +12,19 @@ export function ScaleWheel({
   scale,
   activePitchClasses,
 }: ScaleWheelProps): React.ReactElement {
-  const scalePitchClasses = new Set(getScalePitchClasses(scale));
+  const scalePitchClasses = new Set(scale ? getScalePitchClasses(scale) : []);
 
   return (
     <section className="scale-panel practice-panel">
       <div className="panel-kicker">Scale</div>
       <div className="scale-title">
-        {scale.tonic} {SCALE_MODE_LABELS[scale.mode]}
+        {scale
+          ? `${scale.tonic} ${SCALE_MODE_LABELS[scale.mode]}`
+          : "No key"}
       </div>
       <div className="scale-wheel" aria-label="Selected scale">
         {PITCH_CLASSES.map((pitchClass, index) => {
-          const isInScale = scalePitchClasses.has(pitchClass);
+          const isInScale = !scale || scalePitchClasses.has(pitchClass);
           const isActive = activePitchClasses.has(pitchClass);
           const angle = (index / PITCH_CLASSES.length) * Math.PI * 2 - Math.PI / 2;
 

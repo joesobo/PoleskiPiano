@@ -9,39 +9,56 @@ export interface ChordAnalysis {
   label: string;
   root?: PitchClass;
   notes: PitchClass[];
+  isNamedChord: boolean;
+  quality?: ChordQuality;
 }
+
+export type ChordQuality =
+  | "major"
+  | "minor"
+  | "dominantSeventh"
+  | "majorSeventh"
+  | "minorSeventh"
+  | "diminished"
+  | "augmented"
+  | "suspendedSecond"
+  | "suspendedFourth";
 
 interface ChordPattern {
   suffix: string;
   intervals: number[];
+  quality: ChordQuality;
 }
 
 const CHORD_PATTERNS: ChordPattern[] = [
-  { suffix: "maj7", intervals: [0, 4, 7, 11] },
-  { suffix: "7", intervals: [0, 4, 7, 10] },
-  { suffix: "m7", intervals: [0, 3, 7, 10] },
-  { suffix: "maj", intervals: [0, 4, 7] },
-  { suffix: "m", intervals: [0, 3, 7] },
-  { suffix: "dim", intervals: [0, 3, 6] },
-  { suffix: "aug", intervals: [0, 4, 8] },
-  { suffix: "sus2", intervals: [0, 2, 7] },
-  { suffix: "sus4", intervals: [0, 5, 7] },
+  { suffix: "maj7", intervals: [0, 4, 7, 11], quality: "majorSeventh" },
+  { suffix: "7", intervals: [0, 4, 7, 10], quality: "dominantSeventh" },
+  { suffix: "m7", intervals: [0, 3, 7, 10], quality: "minorSeventh" },
+  { suffix: "maj", intervals: [0, 4, 7], quality: "major" },
+  { suffix: "m", intervals: [0, 3, 7], quality: "minor" },
+  { suffix: "dim", intervals: [0, 3, 6], quality: "diminished" },
+  { suffix: "aug", intervals: [0, 4, 8], quality: "augmented" },
+  { suffix: "sus2", intervals: [0, 2, 7], quality: "suspendedSecond" },
+  { suffix: "sus4", intervals: [0, 5, 7], quality: "suspendedFourth" },
 ];
 
 export function analyzeChord(midiNotes: number[]): ChordAnalysis {
   const notes = uniquePitchClasses(midiNotes);
 
   if (notes.length === 0) {
-    return { label: "No notes", notes };
+    return { label: "No notes", notes, isNamedChord: false };
   }
 
   if (notes.length === 1) {
-    return { label: notes[0], root: notes[0], notes };
+    return { label: notes[0], root: notes[0], notes, isNamedChord: false };
   }
 
   const semitones = new Set(notes.map(pitchClassToSemitone));
+  const rootCandidates = PITCH_CLASSES.filter((pitchClass) =>
+    notes.includes(pitchClass),
+  );
 
-  for (const root of notes) {
+  for (const root of rootCandidates) {
     const rootSemitone = pitchClassToSemitone(root);
     const relativeIntervals = [...semitones]
       .map((semitone) => (semitone - rootSemitone + 12) % 12)
@@ -56,6 +73,8 @@ export function analyzeChord(midiNotes: number[]): ChordAnalysis {
         label: `${root}${pattern.suffix}`,
         root,
         notes,
+        isNamedChord: true,
+        quality: pattern.quality,
       };
     }
   }
@@ -63,6 +82,7 @@ export function analyzeChord(midiNotes: number[]): ChordAnalysis {
   return {
     label: notes.join(" + "),
     notes,
+    isNamedChord: false,
   };
 }
 
@@ -78,7 +98,7 @@ function uniquePitchClasses(midiNotes: number[]): PitchClass[] {
     }
   }
 
-  return PITCH_CLASSES.filter((pitchClass) => ordered.includes(pitchClass));
+  return ordered;
 }
 
 function sameIntervals(left: number[], right: number[]): boolean {

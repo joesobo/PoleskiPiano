@@ -56,20 +56,84 @@ button {
 }
 
 .app-shell {
+  --app-bg: var(--black);
+  --app-fg: var(--base-50);
+  --top-bar-bg: rgba(28, 27, 26, 0.94);
+  --surface-bg: var(--base-950);
+  --surface-grid-line: rgba(242, 240, 229, 0.04);
+  --panel-border: rgba(242, 240, 229, 0.07);
+  --border-subtle: rgba(242, 240, 229, 0.08);
+  --text-main: var(--base-50);
+  --text-muted: var(--base-300);
+  --text-soft: var(--base-200);
+  --text-faint: var(--base-500);
+  --control-bg: var(--base-900);
+  --control-fg: var(--base-50);
+  --control-border: rgba(242, 240, 229, 0.14);
+  --level-bg: rgba(242, 240, 229, 0.1);
+  --wheel-bg: rgba(64, 62, 60, 0.42);
+  --wheel-ring: rgba(242, 240, 229, 0.035);
+  --empty-note-bg: rgba(64, 62, 60, 0.85);
+  --staff-line: rgba(242, 240, 229, 0.22);
+  --staff-note-stroke: rgba(16, 15, 15, 0.35);
+  --piano-bg: #050505;
+  --piano-border: rgba(16, 15, 15, 0.9);
+  --white-key-top: var(--paper);
+  --white-key-bottom: var(--base-100);
+  --white-key-text: var(--base-700);
+  --white-key-divider: rgba(16, 15, 15, 0.34);
+  --black-key-top: #171615;
+  --black-key-bottom: #050505;
+  --black-key-text: var(--base-100);
+  --black-key-shadow: rgba(0, 0, 0, 0.42);
   display: grid;
   grid-template-rows: 68px minmax(0, 1fr) 212px;
   min-height: 100vh;
-  background: var(--black);
+  color: var(--app-fg);
+  background: var(--app-bg);
+}
+
+.app-shell[data-theme="light"] {
+  --app-bg: var(--paper);
+  --app-fg: var(--black);
+  --top-bar-bg: rgba(242, 240, 229, 0.94);
+  --surface-bg: var(--base-50);
+  --surface-grid-line: rgba(16, 15, 15, 0.055);
+  --panel-border: rgba(16, 15, 15, 0.1);
+  --border-subtle: rgba(16, 15, 15, 0.12);
+  --text-main: var(--black);
+  --text-muted: var(--base-700);
+  --text-soft: var(--base-800);
+  --text-faint: var(--base-500);
+  --control-bg: var(--paper);
+  --control-fg: var(--black);
+  --control-border: rgba(16, 15, 15, 0.16);
+  --level-bg: rgba(16, 15, 15, 0.12);
+  --wheel-bg: rgba(218, 216, 206, 0.62);
+  --wheel-ring: rgba(16, 15, 15, 0.04);
+  --empty-note-bg: rgba(218, 216, 206, 0.84);
+  --staff-line: rgba(16, 15, 15, 0.28);
+  --staff-note-stroke: rgba(255, 252, 240, 0.5);
+  --piano-bg: #201f1d;
+  --piano-border: rgba(16, 15, 15, 0.35);
+  --white-key-top: #fffdf4;
+  --white-key-bottom: var(--base-150);
+  --white-key-text: var(--base-800);
+  --white-key-divider: rgba(16, 15, 15, 0.24);
+  --black-key-top: var(--base-850);
+  --black-key-bottom: var(--black);
+  --black-key-text: var(--base-100);
+  --black-key-shadow: rgba(16, 15, 15, 0.26);
 }
 
 .top-bar {
   display: grid;
-  grid-template-columns: minmax(230px, 1fr) minmax(320px, 1fr) auto;
+  grid-template-columns: minmax(230px, 1fr) 120px auto;
   gap: 18px;
   align-items: center;
   padding: 12px 24px 12px 86px;
-  border-bottom: 1px solid rgba(242, 240, 229, 0.08);
-  background: rgba(28, 27, 26, 0.94);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--top-bar-bg);
   -webkit-app-region: drag;
 }
 
@@ -84,7 +148,7 @@ button {
   align-items: center;
   min-width: 0;
   gap: 10px;
-  color: var(--base-200);
+  color: var(--text-soft);
 }
 
 .status-label {
@@ -113,23 +177,8 @@ button {
   box-shadow: 0 0 0 4px rgba(208, 162, 21, 0.16);
 }
 
-.audio-status {
+.level-status {
   justify-content: center;
-}
-
-.audio-button {
-  min-inline-size: 110px;
-  block-size: 34px;
-  border: 1px solid rgba(242, 240, 229, 0.15);
-  border-radius: 6px;
-  background: rgba(64, 62, 60, 0.9);
-  color: var(--base-50);
-  cursor: pointer;
-}
-
-.audio-button:disabled {
-  cursor: default;
-  opacity: 0.72;
 }
 
 .level-meter {
@@ -138,7 +187,7 @@ button {
   block-size: 8px;
   overflow: hidden;
   border-radius: 999px;
-  background: rgba(242, 240, 229, 0.1);
+  background: var(--level-bg);
 }
 
 .level-meter span {
@@ -152,27 +201,74 @@ button {
 
 .key-controls {
   justify-content: end;
-  color: var(--base-300);
+  color: var(--text-muted);
   font-size: 13px;
 }
 
 .key-controls select {
+  inline-size: 136px;
   block-size: 34px;
-  border: 1px solid rgba(242, 240, 229, 0.14);
+  border: 1px solid var(--control-border);
   border-radius: 6px;
-  background: var(--base-900);
-  color: var(--base-50);
+  background: var(--control-bg);
+  color: var(--control-fg);
   padding: 0 30px 0 10px;
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  block-size: 34px;
+  border: 1px solid var(--control-border);
+  border-radius: 999px;
+  background: var(--control-bg);
+  color: var(--control-fg);
+  padding: 0 10px;
+  cursor: pointer;
+}
+
+.theme-toggle-track {
+  position: relative;
+  inline-size: 34px;
+  block-size: 18px;
+  border-radius: 999px;
+  background: var(--base-700);
+}
+
+.theme-toggle-thumb {
+  position: absolute;
+  inset-block-start: 3px;
+  inset-inline-start: 3px;
+  inline-size: 12px;
+  block-size: 12px;
+  border-radius: 50%;
+  background: var(--paper);
+  transition: transform 120ms ease;
+}
+
+.theme-toggle[aria-pressed="true"] .theme-toggle-track {
+  background: var(--yellow);
+}
+
+.theme-toggle[aria-pressed="true"] .theme-toggle-thumb {
+  transform: translateX(16px);
+}
+
+.theme-toggle-label {
+  min-inline-size: 34px;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .practice-surface {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) 78px;
+  grid-template-rows: minmax(0, 1fr);
   min-height: 0;
   background:
-    linear-gradient(90deg, rgba(242, 240, 229, 0.04) 1px, transparent 1px)
+    linear-gradient(90deg, var(--surface-grid-line) 1px, transparent 1px)
       0 0 / 33.333% 100%,
-    var(--base-950);
+    var(--surface-bg);
 }
 
 .middle-grid {
@@ -186,12 +282,12 @@ button {
   place-items: center;
   min-width: 0;
   min-height: 0;
-  border-inline-end: 1px solid rgba(242, 240, 229, 0.07);
+  border-inline-end: 1px solid var(--panel-border);
 }
 
 .panel-kicker {
   align-self: end;
-  color: var(--base-500);
+  color: var(--text-faint);
   font-size: 12px;
   font-weight: 650;
   letter-spacing: 0;
@@ -204,7 +300,7 @@ button {
 }
 
 .scale-title {
-  color: var(--base-50);
+  color: var(--text-main);
   font-size: 24px;
   font-weight: 700;
 }
@@ -214,13 +310,12 @@ button {
   inline-size: 260px;
   block-size: 260px;
   border-radius: 50%;
-  background: rgba(64, 62, 60, 0.42);
-  box-shadow: inset 0 0 0 34px rgba(242, 240, 229, 0.035);
+  background: var(--wheel-bg);
+  box-shadow: inset 0 0 0 34px var(--wheel-ring);
 }
 
 .scale-note,
-.note-pill,
-.timeline-note {
+.note-pill {
   color: var(--note-text);
   background: var(--note-color);
 }
@@ -260,7 +355,7 @@ button {
   padding: 20px 28px;
   border-radius: 8px;
   color: var(--note-text, var(--base-50));
-  background: var(--note-color, rgba(64, 62, 60, 0.85));
+  background: var(--note-color, var(--empty-note-bg));
   font-size: 52px;
   font-weight: 780;
   line-height: 1;
@@ -300,13 +395,13 @@ button {
 
 .staff-lines line,
 .ledger-line {
-  stroke: rgba(242, 240, 229, 0.22);
+  stroke: var(--staff-line);
   stroke-width: 1.5;
   vector-effect: non-scaling-stroke;
 }
 
 .clef {
-  fill: var(--paper);
+  fill: var(--text-main);
   font-family: "Apple Symbols", "Times New Roman", serif;
   font-size: 94px;
   opacity: 0.96;
@@ -318,7 +413,7 @@ button {
 
 .staff-note {
   fill: var(--note-color);
-  stroke: rgba(16, 15, 15, 0.35);
+  stroke: var(--staff-note-stroke);
   stroke-width: 1;
 }
 
@@ -330,35 +425,16 @@ button {
   dominant-baseline: middle;
 }
 
-.timeline-panel {
-  display: flex;
-  align-items: end;
-  gap: 8px;
-  overflow: hidden;
-  padding: 12px 24px;
-  border-top: 1px solid rgba(242, 240, 229, 0.06);
-  background: rgba(16, 15, 15, 0.2);
-}
-
-.timeline-note {
-  display: grid;
-  place-items: end center;
-  inline-size: 42px;
-  min-block-size: 24px;
-  border-radius: 6px 6px 0 0;
-  padding-block-end: 7px;
-  font-size: 11px;
-  font-weight: 800;
-}
-
 .piano-panel {
   position: relative;
   overflow: hidden;
-  border-top: 1px solid rgba(16, 15, 15, 0.9);
-  background: #050505;
+  border-top: 1px solid var(--piano-border);
+  background: var(--piano-bg);
 }
 
 .white-keys {
+  position: relative;
+  z-index: 1;
   display: grid;
   block-size: 100%;
 }
@@ -366,6 +442,7 @@ button {
 .black-keys {
   position: absolute;
   inset: 0;
+  z-index: 2;
   pointer-events: none;
 }
 
@@ -384,14 +461,14 @@ button {
 
 .piano-key-white {
   block-size: 100%;
-  border-inline-end: 1px solid rgba(16, 15, 15, 0.34);
+  border-inline-end: 1px solid var(--white-key-divider);
   background:
     linear-gradient(
       180deg,
-      rgba(255, 252, 240, 1),
-      rgba(230, 228, 217, 1)
+      var(--white-key-top),
+      var(--white-key-bottom)
     );
-  color: var(--base-700);
+  color: var(--white-key-text);
 }
 
 .piano-key-white.is-in-scale::before {
@@ -407,11 +484,11 @@ button {
   z-index: 2;
   block-size: 65%;
   border-radius: 0 0 5px 5px;
-  background: linear-gradient(180deg, #171615, #050505);
-  color: var(--base-100);
+  background: linear-gradient(180deg, var(--black-key-top), var(--black-key-bottom));
+  color: var(--black-key-text);
   transform: translateX(-50%);
   box-shadow:
-    0 8px 18px rgba(0, 0, 0, 0.42),
+    0 8px 18px var(--black-key-shadow),
     inset 0 -1px 0 rgba(255, 252, 240, 0.08);
 }
 
@@ -424,7 +501,6 @@ button {
 }
 
 .piano-key.is-active {
-  z-index: 3;
   filter: saturate(1.25);
 }
 
@@ -463,7 +539,7 @@ button {
 
 .piano-key-black .key-note {
   margin-block-end: 7px;
-  color: var(--base-100);
+  color: var(--black-key-text);
   font-size: 10px;
 }
 

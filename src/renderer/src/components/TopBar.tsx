@@ -1,34 +1,36 @@
-import type { AudioEngineStatus } from "../services/pianoAudio";
 import type { MidiStatus } from "../services/midi";
 import { PITCH_CLASSES, type PitchClass } from "../music/notes";
-import { SCALE_MODE_LABELS, type ScaleMode } from "../music/scales";
+import {
+  SCALE_MODE_LABELS,
+  SCALE_MODES,
+  type ScaleMode,
+  type SelectedScale,
+} from "../music/scales";
+
+export type ThemeMode = "dark" | "light";
 
 interface TopBarProps {
   midiStatus: MidiStatus;
-  audioStatus: AudioEngineStatus;
-  audioMessage: string;
   audioLevel: number;
-  selectedTonic: PitchClass;
-  selectedMode: ScaleMode;
-  onTonicChange: (tonic: PitchClass) => void;
-  onModeChange: (mode: ScaleMode) => void;
-  onEnableAudio: () => void;
+  selectedScale: SelectedScale | null;
+  themeMode: ThemeMode;
+  onScaleChange: (scale: SelectedScale | null) => void;
+  onThemeModeChange: (themeMode: ThemeMode) => void;
 }
 
 export function TopBar({
   midiStatus,
-  audioStatus,
-  audioMessage,
   audioLevel,
-  selectedTonic,
-  selectedMode,
-  onTonicChange,
-  onModeChange,
-  onEnableAudio,
+  selectedScale,
+  themeMode,
+  onScaleChange,
+  onThemeModeChange,
 }: TopBarProps): React.ReactElement {
   const midiLabel =
     midiStatus.selectedInputName ??
     (midiStatus.supported ? "No MIDI device" : "MIDI unavailable");
+  const selectedKey = scaleToKeyValue(selectedScale);
+  const nextThemeMode = themeMode === "dark" ? "light" : "dark";
 
   return (
     <header className="top-bar">
@@ -37,30 +39,7 @@ export function TopBar({
         <span className="status-label">{midiLabel}</span>
       </div>
 
-      <div className="status-group audio-status">
-        <StatusDot
-          tone={
-            audioStatus === "ready"
-              ? "good"
-              : audioStatus === "fallback"
-                ? "warn"
-                : "idle"
-          }
-        />
-        <button
-          className="audio-button"
-          type="button"
-          onClick={onEnableAudio}
-          disabled={
-            audioStatus === "loading" ||
-            audioStatus === "ready" ||
-            audioStatus === "fallback"
-          }
-        >
-          {audioStatus === "ready" || audioStatus === "fallback"
-            ? audioMessage
-            : "Start audio"}
-        </button>
+      <div className="status-group level-status">
         <div className="level-meter" aria-label="Audio level">
           <span style={{ inlineSize: `${Math.round(audioLevel * 100)}%` }} />
         </div>
@@ -69,32 +48,54 @@ export function TopBar({
       <div className="key-controls">
         <span>Key</span>
         <select
-          value={selectedTonic}
-          onChange={(event) => onTonicChange(event.target.value as PitchClass)}
+          value={selectedKey}
+          onChange={(event) => onScaleChange(keyValueToScale(event.target.value))}
           aria-label="Selected key"
         >
-          {PITCH_CLASSES.map((pitchClass) => (
-            <option key={pitchClass} value={pitchClass}>
-              {pitchClass}
-            </option>
-          ))}
+          <option value="none">None</option>
+          {PITCH_CLASSES.flatMap((pitchClass) =>
+            SCALE_MODES.map((mode) => (
+              <option key={`${pitchClass}:${mode}`} value={`${pitchClass}:${mode}`}>
+                {pitchClass} {SCALE_MODE_LABELS[mode].toLowerCase()}
+              </option>
+            )),
+          )}
         </select>
-        <select
-          value={selectedMode}
-          onChange={(event) => onModeChange(event.target.value as ScaleMode)}
-          aria-label="Selected scale mode"
+        <button
+          className="theme-toggle"
+          type="button"
+          aria-label={`Switch to ${nextThemeMode} mode`}
+          aria-pressed={themeMode === "light"}
+          onClick={() => onThemeModeChange(nextThemeMode)}
         >
-          {Object.entries(SCALE_MODE_LABELS).map(([mode, label]) => (
-            <option key={mode} value={mode}>
-              {label}
-            </option>
-          ))}
-        </select>
+          <span className="theme-toggle-track">
+            <span className="theme-toggle-thumb" />
+          </span>
+          <span className="theme-toggle-label">
+            {themeMode === "dark" ? "Dark" : "Light"}
+          </span>
+        </button>
       </div>
     </header>
   );
 }
 
-function StatusDot({ tone }: { tone: "good" | "warn" | "idle" }): React.ReactElement {
+function StatusDot({ tone }: { tone: "good" | "warn" }): React.ReactElement {
   return <span className={`status-dot status-dot-${tone}`} />;
+}
+
+function scaleToKeyValue(scale: SelectedScale | null): string {
+  return scale ? `${scale.tonic}:${scale.mode}` : "none";
+}
+
+function keyValueToScale(value: string): SelectedScale | null {
+  if (value === "none") {
+    return null;
+  }
+
+  const [tonic, mode] = value.split(":");
+  return {
+    tonic: tonic as PitchClass,
+    mode: mode as ScaleMode,
+  };
 }
