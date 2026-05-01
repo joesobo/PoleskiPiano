@@ -1,40 +1,70 @@
 import { noteCssVars } from "../music/colors";
 import type { ChordAnalysis } from "../music/chords";
-import type { ChordPreview } from "../music/chordPreview";
+import type { PitchClass } from "../music/notes";
+
+interface ChordDisplayPreviewNote {
+  label: string;
+  pitchClass: PitchClass;
+}
+
+export interface ChordDisplayPreview {
+  kind: "chord" | "practice";
+  kicker: string;
+  name: string;
+  stepCount?: string;
+  colorPitchClass?: PitchClass;
+  notes: ChordDisplayPreviewNote[];
+}
 
 interface ChordDisplayProps {
   analysis: ChordAnalysis;
-  previewChord?: ChordPreview | null;
+  preview?: ChordDisplayPreview | null;
 }
 
 export function ChordDisplay({
   analysis,
-  previewChord,
+  preview,
 }: ChordDisplayProps): React.ReactElement {
+  const previewColorPitchClass =
+    preview?.colorPitchClass ?? preview?.notes[0]?.pitchClass;
+
   return (
     <section className="chord-panel practice-panel">
       <div className="panel-kicker">Now playing</div>
       <div className="chord-preview-readout">
-        {previewChord ? (
-          <>
-            <span className="chord-preview-kicker">Chord Preview</span>
-            <span
-              className="chord-preview-name"
-              style={noteCssVars(previewChord.root)}
-            >
-              {previewChord.label}
-            </span>
-          </>
+        {preview ? (
+          preview.kind === "practice" ? (
+            <div className="practice-preview-title-row">
+              <span className="practice-preview-title">{preview.name}</span>
+              {preview.stepCount ? (
+                <span className="practice-preview-count">{preview.stepCount}</span>
+              ) : null}
+            </div>
+          ) : (
+            <>
+              <span className="chord-preview-kicker">{preview.kicker}</span>
+              <span
+                className="chord-preview-name"
+                style={
+                  previewColorPitchClass
+                    ? noteCssVars(previewColorPitchClass)
+                    : undefined
+                }
+              >
+                {preview.name}
+              </span>
+            </>
+          )
         ) : null}
       </div>
-      <div className="preview-note-pills" aria-hidden={!previewChord}>
-        {previewChord?.pitchClasses.map((pitchClass) => (
+      <div className="preview-note-pills" aria-hidden={!preview}>
+        {preview?.notes.map((note, index) => (
           <span
             className="note-pill note-pill-preview"
-            key={pitchClass}
-            style={noteCssVars(pitchClass)}
+            key={`${note.label}-${index}`}
+            style={noteCssVars(note.pitchClass)}
           >
-            {pitchClass}
+            {note.label}
           </span>
         ))}
       </div>

@@ -1,0 +1,22 @@
+{
+  "title": "Practice: C Chord Changes",
+  "scale": "C major",
+  "steps": [
+    "C3",
+    "CMajor",
+    "F3",
+    "FMajor",
+    "G3",
+    "GMajor",
+    "CMajor",
+    "C3 + E3 + G3",
+    "F3 + A3 + C4",
+    "G3 + B3 + D4",
+    "C3 + E3 + G3",
+    "G3",
+    "F3",
+    "E3",
+    "D3",
+    "C3"
+  ]
+}

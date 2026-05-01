@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   getChordPreviewOptionClassName,
   getChordPreviewSelectedClassName,
+  getPracticeSongOptionClassName,
 } from "./TopBar";
 
 describe("TopBar chord preview options", () => {
@@ -24,5 +25,34 @@ describe("TopBar chord preview selected value", () => {
     expect(getChordPreviewSelectedClassName("is-in-scale-option")).toBe(
       "top-select-selected-name chord-preview-option-name is-in-scale-option",
     );
+  });
+});
+
+describe("TopBar practice song options", () => {
+  it("marks invalid songs for disabled selector rendering", () => {
+    expect(
+      getPracticeSongOptionClassName({
+        status: "invalid",
+        id: "songs/bad.json",
+        title: "Bad Song",
+        path: "songs/bad.json",
+        error: "Invalid Practice Song scale",
+      }),
+    ).toBe("is-invalid-song-option");
+
+    expect(
+      getPracticeSongOptionClassName({
+        status: "valid",
+        id: "songs/good.json",
+        title: "Good Song",
+        path: "songs/good.json",
+        song: {
+          id: "songs/good.json",
+          title: "Good Song",
+          scale: null,
+          steps: [],
+        },
+      }),
+    ).toBeUndefined();
   });
 });

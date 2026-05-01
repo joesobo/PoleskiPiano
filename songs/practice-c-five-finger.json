@@ -1,0 +1,24 @@
+{
+  "title": "Practice: C Five-Finger",
+  "scale": "C major",
+  "steps": [
+    "C3",
+    "D3",
+    "E3",
+    "F3",
+    "G3",
+    "F3",
+    "E3",
+    "D3",
+    "C3",
+    "C3 + E3 + G3",
+    "D3",
+    "E3",
+    "F3",
+    "G3",
+    "F3",
+    "E3",
+    "D3",
+    "C3"
+  ]
+}

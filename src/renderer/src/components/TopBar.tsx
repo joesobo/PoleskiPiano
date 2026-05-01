@@ -13,18 +13,27 @@ import {
   type ScaleMode,
   type SelectedScale,
 } from "../music/scales";
+import type { PracticeSongOption } from "../music/practiceSongs";
 
 export type ThemeMode = "dark" | "light";
+export const NONE_PRACTICE_SONG_ID = "none";
 
 interface TopBarProps {
   midiStatus: MidiStatus;
   audioLevel: number;
   selectedScale: SelectedScale | null;
   selectedChordPreview: ChordPreview | null;
-  themeMode: ThemeMode;
+  practiceSongOptions: PracticeSongOption[];
+  selectedPracticeSongId: string;
+  hasSelectedPracticeSong: boolean;
+  isPracticePlaying: boolean;
   onScaleChange: (scale: SelectedScale | null) => void;
   onChordPreviewChange: (preview: ChordPreview | null) => void;
-  onThemeModeChange: (themeMode: ThemeMode) => void;
+  onPracticeSongChange: (practiceSongId: string) => void;
+  onPracticeBack: () => void;
+  onPracticeNext: () => void;
+  onPracticeRestart: () => void;
+  onPracticePlayingChange: (isPlaying: boolean) => void;
 }
 
 export function TopBar({
@@ -32,26 +41,28 @@ export function TopBar({
   audioLevel,
   selectedScale,
   selectedChordPreview,
-  themeMode,
+  practiceSongOptions,
+  selectedPracticeSongId,
+  hasSelectedPracticeSong,
+  isPracticePlaying,
   onScaleChange,
   onChordPreviewChange,
-  onThemeModeChange,
+  onPracticeSongChange,
+  onPracticeBack,
+  onPracticeNext,
+  onPracticeRestart,
+  onPracticePlayingChange,
 }: TopBarProps): React.ReactElement {
   const midiLabel =
     midiStatus.selectedInputName ??
     (midiStatus.supported ? "No MIDI device" : "MIDI unavailable");
   const chordPreviewOptions = getChordPreviewOptions(selectedScale);
   const hasSelectedScale = selectedScale !== null;
-  const nextThemeMode = themeMode === "dark" ? "light" : "dark";
 
   return (
     <header className="top-bar">
-      <div className="status-group">
+      <div className="status-group signal-status" aria-label={midiLabel}>
         <StatusDot tone={midiStatus.selectedInputName ? "good" : "warn"} />
-        <span className="status-label">{midiLabel}</span>
-      </div>
-
-      <div className="status-group level-status">
         <div className="level-meter" aria-label="Audio level">
           <span style={{ inlineSize: `${Math.round(audioLevel * 100)}%` }} />
         </div>
@@ -65,31 +76,190 @@ export function TopBar({
             onScaleChange={onScaleChange}
           />
         </div>
-        <div className="select-control chord-preview-control">
-          <span>Chord Preview</span>
-          <ChordPreviewSelect
-            hasSelectedScale={hasSelectedScale}
-            options={chordPreviewOptions}
-            selectedChordPreview={selectedChordPreview}
-            onChordPreviewChange={onChordPreviewChange}
+        <div className="select-control practice-song-control">
+          <span>Song</span>
+          <PracticeSongSelect
+            options={practiceSongOptions}
+            selectedPracticeSongId={selectedPracticeSongId}
+            onPracticeSongChange={onPracticeSongChange}
           />
         </div>
-        <button
-          className="theme-toggle"
-          type="button"
-          aria-label={`Switch to ${nextThemeMode} mode`}
-          aria-pressed={themeMode === "light"}
-          onClick={() => onThemeModeChange(nextThemeMode)}
-        >
-          <span className="theme-toggle-track">
-            <span className="theme-toggle-thumb" />
-          </span>
-          <span className="theme-toggle-label">
-            {themeMode === "dark" ? "Dark" : "Light"}
-          </span>
-        </button>
+        {hasSelectedPracticeSong ? (
+          <PracticeSongControls
+            isPracticePlaying={isPracticePlaying}
+            onBack={onPracticeBack}
+            onNext={onPracticeNext}
+            onRestart={onPracticeRestart}
+            onPlayingChange={onPracticePlayingChange}
+          />
+        ) : (
+          <div className="select-control chord-preview-control">
+            <span>Chord Preview</span>
+            <ChordPreviewSelect
+              hasSelectedScale={hasSelectedScale}
+              options={chordPreviewOptions}
+              selectedChordPreview={selectedChordPreview}
+              onChordPreviewChange={onChordPreviewChange}
+            />
+          </div>
+        )}
       </div>
     </header>
+  );
+}
+
+interface PracticeSongSelectProps {
+  options: PracticeSongOption[];
+  selectedPracticeSongId: string;
+  onPracticeSongChange: (practiceSongId: string) => void;
+}
+
+function PracticeSongSelect({
+  options,
+  selectedPracticeSongId,
+  onPracticeSongChange,
+}: PracticeSongSelectProps): React.ReactElement {
+  const [isOpen, setIsOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const selectedOption = options.find(
+    (option) => option.id === selectedPracticeSongId,
+  );
+
+  useCloseOnOutsidePointer(isOpen, rootRef, setIsOpen);
+
+  return (
+    <div className="top-select practice-song-select" ref={rootRef}>
+      <button
+        aria-expanded={isOpen}
+        aria-haspopup="listbox"
+        className="top-select-trigger"
+        type="button"
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            setIsOpen(false);
+          }
+        }}
+        onClick={() => setIsOpen((current) => !current)}
+      >
+        <span className="top-select-selected-name">
+          {selectedOption?.title ?? "None"}
+        </span>
+        <span className="top-select-arrow" aria-hidden="true">
+          ▾
+        </span>
+      </button>
+      {isOpen ? (
+        <div
+          aria-label="Practice song"
+          className="top-select-menu practice-song-menu"
+          role="listbox"
+        >
+          <button
+            aria-selected={selectedPracticeSongId === NONE_PRACTICE_SONG_ID}
+            className="top-select-option"
+            role="option"
+            type="button"
+            onClick={() => {
+              onPracticeSongChange(NONE_PRACTICE_SONG_ID);
+              setIsOpen(false);
+            }}
+          >
+            <span className="top-select-option-name">None</span>
+          </button>
+          {options.map((option) => {
+            const isInvalid = option.status === "invalid";
+
+            return (
+              <button
+                aria-disabled={isInvalid}
+                aria-selected={selectedPracticeSongId === option.id}
+                className={[
+                  "top-select-option",
+                  "practice-song-option",
+                  getPracticeSongOptionClassName(option),
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                key={option.id}
+                role="option"
+                title={isInvalid ? option.error : undefined}
+                type="button"
+                onClick={() => {
+                  if (isInvalid) {
+                    return;
+                  }
+
+                  onPracticeSongChange(option.id);
+                  setIsOpen(false);
+                }}
+              >
+                {isInvalid ? (
+                  <span className="song-invalid-marker" aria-hidden="true" />
+                ) : null}
+                <span className="top-select-option-name">{option.title}</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+interface PracticeSongControlsProps {
+  isPracticePlaying: boolean;
+  onBack: () => void;
+  onNext: () => void;
+  onRestart: () => void;
+  onPlayingChange: (isPlaying: boolean) => void;
+}
+
+function PracticeSongControls({
+  isPracticePlaying,
+  onBack,
+  onNext,
+  onRestart,
+  onPlayingChange,
+}: PracticeSongControlsProps): React.ReactElement {
+  return (
+    <div className="practice-song-controls" aria-label="Practice song controls">
+      <button
+        className="practice-control-button"
+        type="button"
+        aria-label="Previous Practice Step"
+        title="Previous step"
+        onClick={onBack}
+      >
+        <span aria-hidden="true">⏮</span>
+      </button>
+      <button
+        className="practice-control-button practice-play-button"
+        type="button"
+        aria-label={isPracticePlaying ? "Pause Practice Song" : "Play Practice Song"}
+        title={isPracticePlaying ? "Pause" : "Play"}
+        onClick={() => onPlayingChange(!isPracticePlaying)}
+      >
+        <span aria-hidden="true">{isPracticePlaying ? "⏸" : "▶"}</span>
+      </button>
+      <button
+        className="practice-control-button"
+        type="button"
+        aria-label="Next Practice Step"
+        title="Next step"
+        onClick={onNext}
+      >
+        <span aria-hidden="true">⏭</span>
+      </button>
+      <button
+        className="practice-control-button"
+        type="button"
+        aria-label="Restart Practice Song"
+        title="Restart"
+        onClick={onRestart}
+      >
+        <span aria-hidden="true">↺</span>
+      </button>
+    </div>
   );
 }
 
@@ -339,4 +509,10 @@ export function getChordPreviewSelectedClassName(
   ]
     .filter(Boolean)
     .join(" ");
+}
+
+export function getPracticeSongOptionClassName(
+  option: PracticeSongOption,
+): string | undefined {
+  return option.status === "invalid" ? "is-invalid-song-option" : undefined;
 }

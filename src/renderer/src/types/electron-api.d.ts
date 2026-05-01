@@ -8,6 +8,8 @@ declare global {
         chrome: string;
         electron: string;
       };
+      onThemeToggle?: (callback: () => void) => () => void;
+      setThemeMode?: (themeMode: "dark" | "light") => void;
     };
   }
 }

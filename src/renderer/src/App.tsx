@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChordDisplay } from "./components/ChordDisplay";
+import {
+  ChordDisplay,
+  type ChordDisplayPreview,
+} from "./components/ChordDisplay";
 import { PianoKeyboard } from "./components/PianoKeyboard";
 import { ScaleWheel } from "./components/ScaleWheel";
 import { StaffNotation } from "./components/StaffNotation";
-import { TopBar, type ThemeMode } from "./components/TopBar";
+import {
+  NONE_PRACTICE_SONG_ID,
+  TopBar,
+  type ThemeMode,
+} from "./components/TopBar";
 import {
   type ActiveInputTransition,
   type ActiveNote,
@@ -25,6 +32,12 @@ import {
   pitchClassToSemitone,
   type PitchClass,
 } from "./music/notes";
+import { PRACTICE_SONG_OPTIONS } from "./music/practiceSongLibrary";
+import {
+  activeMidiNotesMatchPracticeStep,
+  type PracticeStep,
+  type PracticeSong,
+} from "./music/practiceSongs";
 import {
   getScalePitchClasses,
   type SelectedScale,
@@ -44,10 +57,16 @@ const initialMidiStatus: MidiStatus = {
   permission: "unknown",
   inputs: [],
 };
+const initialPracticeState = {
+  song: null as PracticeSong | null,
+  stepIndex: 0,
+  isPlaying: false,
+};
 
 export function App(): React.ReactElement {
   const audioEngineRef = useRef(new PianoAudioEngine());
   const activeInputStateRef = useRef(createActiveInputState());
+  const practiceStateRef = useRef(initialPracticeState);
   const [midiStatus, setMidiStatus] = useState<MidiStatus>(initialMidiStatus);
   const [activeInputState, setActiveInputState] = useState(
     createActiveInputState,
@@ -56,9 +75,32 @@ export function App(): React.ReactElement {
   const [selectedScale, setSelectedScale] = useState<SelectedScale | null>(null);
   const [selectedChordPreview, setSelectedChordPreview] =
     useState<ChordPreview | null>(null);
+  const [selectedPracticeSongId, setSelectedPracticeSongId] = useState(
+    NONE_PRACTICE_SONG_ID,
+  );
+  const [practiceStepIndex, setPracticeStepIndex] = useState(0);
+  const [isPracticePlaying, setIsPracticePlaying] = useState(false);
   const [themeMode, setThemeMode] = useState<ThemeMode>("dark");
   const [screenInputResetKey, setScreenInputResetKey] = useState(0);
   const activeNotes = activeInputState.notes;
+  const selectedPracticeSong = useMemo(() => {
+    const option = PRACTICE_SONG_OPTIONS.find(
+      (practiceSongOption) =>
+        practiceSongOption.id === selectedPracticeSongId &&
+        practiceSongOption.status === "valid",
+    );
+
+    return option?.status === "valid" ? option.song : null;
+  }, [selectedPracticeSongId]);
+  const currentPracticeStep = selectedPracticeSong
+    ? selectedPracticeSong.steps[practiceStepIndex] ?? null
+    : null;
+  const practiceStepPosition = selectedPracticeSong
+    ? {
+        current: practiceStepIndex + 1,
+        total: selectedPracticeSong.steps.length,
+      }
+    : null;
 
   const activeMidiNotes = useMemo(
     () => new Set(activeNotes.keys()),
@@ -85,12 +127,27 @@ export function App(): React.ReactElement {
     [selectedScale],
   );
   const previewMidiNotes = useMemo(
-    () => selectedChordPreview?.midiNotes ?? [],
-    [selectedChordPreview],
+    () => currentPracticeStep?.midiNotes ?? selectedChordPreview?.midiNotes ?? [],
+    [currentPracticeStep, selectedChordPreview],
   );
   const previewMidiNoteSet = useMemo(
     () => new Set(previewMidiNotes),
     [previewMidiNotes],
+  );
+  const chordDisplayPreview = useMemo(
+    () =>
+      buildChordDisplayPreview(
+        selectedPracticeSong,
+        currentPracticeStep,
+        practiceStepPosition,
+        selectedChordPreview,
+      ),
+    [
+      currentPracticeStep,
+      practiceStepPosition,
+      selectedChordPreview,
+      selectedPracticeSong,
+    ],
   );
 
   const applyInputTransition = useCallback(
@@ -114,6 +171,39 @@ export function App(): React.ReactElement {
     },
     [],
   );
+  const maybeAdvancePracticeStep = useCallback(
+    (transition: ActiveInputTransition): void => {
+      const practiceState = practiceStateRef.current;
+
+      if (
+        !practiceState.isPlaying ||
+        !practiceState.song ||
+        transition.state.source !== "midi" ||
+        (transition.noteOns.length === 0 && transition.noteOffs.length === 0)
+      ) {
+        return;
+      }
+
+      const practiceSong = practiceState.song;
+      const expectedStep = practiceSong.steps[practiceState.stepIndex];
+
+      if (
+        activeMidiNotesMatchPracticeStep(
+          transition.state.notes.keys(),
+          expectedStep,
+        )
+      ) {
+        setPracticeStepIndex((currentStepIndex) => {
+          if (currentStepIndex !== practiceState.stepIndex) {
+            return currentStepIndex;
+          }
+
+          return (currentStepIndex + 1) % practiceSong.steps.length;
+        });
+      }
+    },
+    [],
+  );
 
   const handleMidiEvent = useCallback(
     (event: MidiNoteEvent): void => {
@@ -125,13 +215,13 @@ export function App(): React.ReactElement {
 
       if (event.type === "noteon") {
         const previousSource = activeInputStateRef.current.source;
-
-        applyInputTransition(
-          applyMidiNoteOn(
-            activeInputStateRef.current,
-            buildActiveNote(midi, event.velocity, event.receivedAt),
-          ),
+        const transition = applyMidiNoteOn(
+          activeInputStateRef.current,
+          buildActiveNote(midi, event.velocity, event.receivedAt),
         );
+
+        applyInputTransition(transition);
+        maybeAdvancePracticeStep(transition);
 
         if (previousSource === "screen") {
           setScreenInputResetKey((resetKey) => resetKey + 1);
@@ -140,11 +230,12 @@ export function App(): React.ReactElement {
         return;
       }
 
-      applyInputTransition(
-        applyMidiNoteOff(activeInputStateRef.current, midi),
-      );
+      const transition = applyMidiNoteOff(activeInputStateRef.current, midi);
+
+      applyInputTransition(transition);
+      maybeAdvancePracticeStep(transition);
     },
-    [applyInputTransition],
+    [applyInputTransition, maybeAdvancePracticeStep],
   );
 
   const handleScreenNoteStart = useCallback(
@@ -173,6 +264,59 @@ export function App(): React.ReactElement {
   const handleScreenNoteStop = useCallback((): void => {
     applyInputTransition(applyScreenNoteStop(activeInputStateRef.current));
   }, [applyInputTransition]);
+  const handlePracticeSongChange = useCallback((practiceSongId: string): void => {
+    setSelectedPracticeSongId(practiceSongId);
+    setPracticeStepIndex(0);
+    setIsPracticePlaying(false);
+
+    if (practiceSongId === NONE_PRACTICE_SONG_ID) {
+      return;
+    }
+
+    const option = PRACTICE_SONG_OPTIONS.find(
+      (practiceSongOption) =>
+        practiceSongOption.id === practiceSongId &&
+        practiceSongOption.status === "valid",
+    );
+
+    if (option?.status !== "valid") {
+      return;
+    }
+
+    setSelectedChordPreview(null);
+
+    if (option.song.scale) {
+      setSelectedScale(option.song.scale);
+    }
+  }, []);
+  const handlePracticeBack = useCallback((): void => {
+    setPracticeStepIndex((currentStepIndex) =>
+      Math.max(0, currentStepIndex - 1),
+    );
+  }, []);
+  const handlePracticeNext = useCallback((): void => {
+    setPracticeStepIndex((currentStepIndex) => {
+      if (!selectedPracticeSong) {
+        return 0;
+      }
+
+      return Math.min(
+        selectedPracticeSong.steps.length - 1,
+        currentStepIndex + 1,
+      );
+    });
+  }, [selectedPracticeSong]);
+  const handlePracticeRestart = useCallback((): void => {
+    setPracticeStepIndex(0);
+  }, []);
+
+  useEffect(() => {
+    practiceStateRef.current = {
+      song: selectedPracticeSong,
+      stepIndex: practiceStepIndex,
+      isPlaying: isPracticePlaying,
+    };
+  }, [isPracticePlaying, practiceStepIndex, selectedPracticeSong]);
 
   useEffect(() => {
     let isMounted = true;
@@ -209,6 +353,18 @@ export function App(): React.ReactElement {
     return () => window.clearTimeout(timeout);
   }, [audioLevel]);
 
+  useEffect(() => {
+    return window.poleskiPiano?.onThemeToggle?.(() => {
+      setThemeMode((currentThemeMode) =>
+        currentThemeMode === "dark" ? "light" : "dark",
+      );
+    });
+  }, []);
+
+  useEffect(() => {
+    window.poleskiPiano?.setThemeMode?.(themeMode);
+  }, [themeMode]);
+
   const enableAudio = useCallback(async (): Promise<void> => {
     try {
       await audioEngineRef.current.initialize();
@@ -228,10 +384,17 @@ export function App(): React.ReactElement {
         audioLevel={audioLevel}
         selectedScale={selectedScale}
         selectedChordPreview={selectedChordPreview}
-        themeMode={themeMode}
+        practiceSongOptions={PRACTICE_SONG_OPTIONS}
+        selectedPracticeSongId={selectedPracticeSongId}
+        hasSelectedPracticeSong={selectedPracticeSong !== null}
+        isPracticePlaying={isPracticePlaying}
         onScaleChange={setSelectedScale}
         onChordPreviewChange={setSelectedChordPreview}
-        onThemeModeChange={setThemeMode}
+        onPracticeSongChange={handlePracticeSongChange}
+        onPracticeBack={handlePracticeBack}
+        onPracticeNext={handlePracticeNext}
+        onPracticeRestart={handlePracticeRestart}
+        onPracticePlayingChange={setIsPracticePlaying}
       />
 
       <main className="practice-surface">
@@ -245,7 +408,7 @@ export function App(): React.ReactElement {
           />
           <ChordDisplay
             analysis={chordAnalysis}
-            previewChord={selectedChordPreview}
+            preview={chordDisplayPreview}
           />
           <StaffNotation
             activeMidiNotes={orderedActiveMidiNotes}
@@ -307,4 +470,36 @@ function buildScaleMidiSet(scale: SelectedScale | null): Set<number> {
   }
 
   return midiNotes;
+}
+
+function buildChordDisplayPreview(
+  practiceSong: PracticeSong | null,
+  practiceStep: PracticeStep | null,
+  practiceStepPosition: { current: number; total: number } | null,
+  chordPreview: ChordPreview | null,
+): ChordDisplayPreview | null {
+  if (practiceSong && practiceStep && practiceStepPosition) {
+    return {
+      kind: "practice",
+      kicker: "Practice",
+      name: practiceSong.title,
+      stepCount: `${practiceStepPosition.current}/${practiceStepPosition.total}`,
+      notes: practiceStep.notes,
+    };
+  }
+
+  if (chordPreview) {
+    return {
+      kind: "chord",
+      kicker: "Chord Preview",
+      name: chordPreview.label,
+      colorPitchClass: chordPreview.root,
+      notes: chordPreview.pitchClasses.map((pitchClass) => ({
+        label: pitchClass,
+        pitchClass,
+      })),
+    };
+  }
+
+  return null;
 }

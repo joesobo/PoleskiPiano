@@ -58,9 +58,45 @@ PoleskiPiano is a lightweight native desktop piano-learning app for a small 37-k
 - Initial chord preview choices are the 12 major triads and 12 minor triads. Seventh, suspended, diminished, augmented, inversions, and octave variants are deferred.
 - Chord preview remains independent from the selected scale. Chord name text in the preview selector uses the chord root's pitch-class color; when a scale is selected, options outside that scale are dimmed, not hidden or disabled.
 - A preview chord is considered inside a selected scale only when all of the chord's notes belong to that scale.
+- MIDI connection is represented in the top bar by a connected/unconnected status light, not the MIDI device name.
+- MIDI connection status and audio activity should sit together as a compact signal cluster on the far left of the top bar.
+- Theme switching is a native app command under the View menu, not a visible control in the practice surface. The command uses Appearance wording.
+- Practice Preview reuses the same ghost-note visual language as Chord Preview, but it is sourced from the current Practice Step.
+- When a Practice Song is selected, Practice Preview owns the ghost target surface and Chord Preview is unavailable.
+- The top bar hides Chord Preview while a valid Practice Song is selected.
+- Practice Preview shows the selected Practice Song title and current step count as lightweight context, such as `Song Name 2/12`.
+- Practice Preview shows the Practice Song title as normal text with the current step count beside it.
+- Practice Preview shows only the current Practice Step's note or notes below the title as ghosted targets, matching the Chord Preview visual treatment.
 - Beginner-facing UI should avoid unexplained theory terms such as diatonic, borrowed, and chromatic.
 - Default keyboard range is C2 through C5.
 - On-screen input uses the same C2-C5 keyboard range. It does not introduce scrolling, range extension, or separate playable ranges in v0.
+- A Practice Song is an ordered list of Practice Steps for rudimentary song practice.
+- A Practice Step is one expected note, chord, or note set the learner should play before moving forward.
+- Practice Songs are local JSON objects with `title` and ordered `steps`. The selector uses `title`; missing titles fall back to filename.
+- Practice Songs can optionally include `scale`, such as `D major`, to describe the song's passive scale structure.
+- Practice Song files live in the root `songs/` folder.
+- Practice Songs can be generated from local MIDI files the learner has rights to use. The importer groups MIDI notes that start together into one Practice Step.
+- The MIDI importer should fail visibly on out-of-range notes by default instead of silently creating unusable Practice Songs. Transpose and rough-draft drop options are explicit.
+- Practice Step strings support exact notes with octave such as `C3`, pitch classes without octave such as `F#`, major/minor chord aliases such as `CMajor` and `DMinor`, and simultaneous sets joined by `+`.
+- Pitch classes without octave in Practice Steps default to octave 3.
+- A Practice Step can mix explicit notes and chord aliases, such as `G2 + DMajor`. Chord aliases expand to their current third-octave chord preview shape.
+- Practice Step parsing is case-insensitive. Flats, rests, rhythm, measures, lyrics, and durations are deferred.
+- While playing a Practice Song, a Practice Step is matched by exact active note set. Note order and release order do not matter.
+- A Practice Step does not advance when expected notes are missing or when extra notes are active.
+- Practice Step advancement is triggered by physical MIDI keyboard input only. On-screen input still plays audio and updates the practice surface, but it does not complete Practice Steps.
+- When a Practice Song is selected but paused, MIDI and on-screen input behave normally for audio, highlighting, chord display, and staff display. Auto-advance is off until playback is started.
+- Selecting a Practice Song resets to the first Practice Step and starts paused.
+- Switching between Practice Songs resets to the new song's first Practice Step and starts paused.
+- Switching the Practice Song selector back to None clears Practice Preview and makes Chord Preview available again.
+- Selecting a Practice Song with `scale` sets the Scale selector to that scale so the passive scale tint matches the song.
+- A Practice Song's `scale` is an initial hint, not a lock. The learner can manually change Scale while practicing, and selecting another Practice Song applies that song's scale hint again.
+- A Practice Song with an invalid optional `scale` is invalid. It remains visible as a disabled selector option with a red marker and tooltip error.
+- When playback reaches the final Practice Step and the learner matches it, the Practice Song loops back to the first Practice Step and stays playing.
+- Restart returns to the first Practice Step without changing playback state: playing stays playing, paused stays paused.
+- Invalid Practice Song files remain visible in the Practice Song selector as disabled options. Disabled song options are visually dimmed, show a small red marker, and expose the parse or validation error in a hover tooltip.
+- The top bar always shows the Practice Song selector. When a valid Practice Song is selected, it also shows compact back, play/pause, next, and restart controls plus the current step count.
+- Practice Song controls are hidden when Practice Song is None or when a song file is invalid and disabled.
+- Practice Song examples should include simple technique drills plus playable song imports or sketches.
 - Colors are stable absolute pitch-class colors. A note keeps the same color across piano keys and selected scales.
 - Selected scale affects highlighting, not the pitch-class color mapping.
 - Selected scale is background structure only. It lightly distinguishes notes that belong to the scale from notes outside it.
@@ -89,9 +125,17 @@ _Avoid_: ghost mode, chord drill
 Playing notes directly through the app's visual surfaces instead of the physical MIDI keyboard.
 _Avoid_: click mode, virtual keyboard mode
 
+**Practice Song**:
+An ordered set of simple practice targets loaded from a local song file.
+_Avoid_: song lesson, exercise
+
+**Practice Step**:
+One expected note, chord, or note set inside a Practice Song.
+_Avoid_: line, measure, bar
+
 ## v0 layout
 
-- Top bar: MIDI device status, audio level, combined scale selector, chord preview selector, and dark/light theme toggle.
+- Top bar: compact MIDI connection status and audio level cluster, combined scale selector, Practice Song selector and controls, and conditional chord preview selector.
 - Middle left: selected scale/circle-style pitch map.
 - Middle center: live notes/chord being played.
 - Middle right: traditional grand staff with treble and bass clefs.

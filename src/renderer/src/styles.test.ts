@@ -32,10 +32,9 @@ describe("on-screen input styles", () => {
 });
 
 describe("app theme styles", () => {
-  it("defines light theme overrides and a top-bar theme toggle", () => {
+  it("defines light theme overrides without a renderer top-bar theme toggle", () => {
     expect(styles).toMatch(/\.app-shell\[data-theme="light"\]\s*\{/);
-    expect(styles).toMatch(/\.theme-toggle\s*\{/);
-    expect(styles).toMatch(/\.theme-toggle\[aria-pressed="true"\]/);
+    expect(styles).not.toMatch(/\.theme-toggle/);
   });
 });
 
@@ -49,5 +48,17 @@ describe("chord preview option styles", () => {
     expect(styles).toMatch(
       /\.is-out-scale-option\s*\{[^}]*opacity:\s*0\.38/s,
     );
+  });
+});
+
+describe("practice song styles", () => {
+  it("styles disabled invalid songs and compact practice controls", () => {
+    expect(styles).toMatch(/\.practice-song-select\s*\{/);
+    expect(styles).toMatch(/\.is-invalid-song-option\s*\{[^}]*opacity:\s*0\.44/s);
+    expect(styles).toMatch(/\.song-invalid-marker\s*\{[^}]*background:\s*var\(--red\)/s);
+    expect(styles).toMatch(/\.practice-song-controls\s*\{/);
+    expect(styles).toMatch(/\.practice-preview-title-row\s*\{/);
+    expect(styles).toMatch(/\.practice-preview-count\s*\{/);
+    expect(styles).toMatch(/\.signal-status\s*\{/);
   });
 });

@@ -128,8 +128,8 @@ button {
 
 .top-bar {
   display: grid;
-  grid-template-columns: minmax(200px, 1fr) 100px auto;
-  gap: 16px;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
   align-items: center;
   padding: 12px 24px 12px 86px;
   border-bottom: 1px solid var(--border-subtle);
@@ -152,11 +152,9 @@ button {
   color: var(--text-soft);
 }
 
-.status-label {
-  overflow: hidden;
-  font-size: 14px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.signal-status {
+  gap: 12px;
+  padding: 0 10px 0 0;
 }
 
 .status-dot {
@@ -178,13 +176,9 @@ button {
   box-shadow: 0 0 0 4px rgba(208, 162, 21, 0.16);
 }
 
-.level-status {
-  justify-content: center;
-}
-
 .level-meter {
   position: relative;
-  inline-size: 86px;
+  inline-size: 72px;
   block-size: 8px;
   overflow: hidden;
   border-radius: 999px;
@@ -231,6 +225,10 @@ button {
 
 .chord-preview-select {
   inline-size: 156px;
+}
+
+.practice-song-select {
+  inline-size: 178px;
 }
 
 .top-select-trigger {
@@ -292,9 +290,34 @@ button {
   text-align: start;
 }
 
+.practice-song-option {
+  gap: 8px;
+}
+
+.top-select-option[aria-disabled="true"] {
+  cursor: default;
+}
+
+.is-invalid-song-option {
+  opacity: 0.44;
+}
+
+.song-invalid-marker {
+  inline-size: 7px;
+  block-size: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--red);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--red), transparent 82%);
+}
+
 .top-select-option:hover,
 .top-select-option[aria-selected="true"] {
   background: color-mix(in srgb, var(--control-fg), transparent 92%);
+}
+
+.top-select-option[aria-disabled="true"]:hover {
+  background: transparent;
 }
 
 .is-in-scale-option {
@@ -306,50 +329,30 @@ button {
   opacity: 0.38;
 }
 
-.theme-toggle {
+.practice-song-controls {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+}
+
+.practice-control-button {
+  display: grid;
+  place-items: center;
+  inline-size: 34px;
   block-size: 34px;
   border: 1px solid var(--control-border);
-  border-radius: 999px;
+  border-radius: 6px;
   background: var(--control-bg);
   color: var(--control-fg);
-  padding: 0 10px;
+  padding: 0;
   cursor: pointer;
+  font-size: 15px;
+  font-weight: 750;
+  line-height: 1;
 }
 
-.theme-toggle-track {
-  position: relative;
-  inline-size: 34px;
-  block-size: 18px;
-  border-radius: 999px;
-  background: var(--base-700);
-}
-
-.theme-toggle-thumb {
-  position: absolute;
-  inset-block-start: 3px;
-  inset-inline-start: 3px;
-  inline-size: 12px;
-  block-size: 12px;
-  border-radius: 50%;
-  background: var(--paper);
-  transition: transform 120ms ease;
-}
-
-.theme-toggle[aria-pressed="true"] .theme-toggle-track {
-  background: var(--yellow);
-}
-
-.theme-toggle[aria-pressed="true"] .theme-toggle-thumb {
-  transform: translateX(16px);
-}
-
-.theme-toggle-label {
-  min-inline-size: 34px;
-  font-size: 12px;
-  font-weight: 700;
+.practice-play-button {
+  font-size: 14px;
 }
 
 .practice-surface {
@@ -452,6 +455,29 @@ button {
   color: var(--text-muted);
 }
 
+.practice-preview-title-row {
+  display: inline-grid;
+  grid-template-columns: minmax(0, auto) auto;
+  align-items: center;
+  max-inline-size: 240px;
+  gap: 10px;
+}
+
+.practice-preview-title {
+  overflow: hidden;
+  color: var(--text-main);
+  font-size: 15px;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.practice-preview-count {
+  color: var(--text-soft);
+  font-size: 12px;
+  font-weight: 850;
+}
+
 .chord-preview-kicker {
   font-size: 11px;
   font-weight: 750;
@@ -461,12 +487,16 @@ button {
 
 .chord-preview-name {
   min-inline-size: 48px;
+  max-inline-size: 144px;
+  overflow: hidden;
   border-radius: 999px;
   padding: 5px 10px;
   color: var(--note-text);
   background: color-mix(in srgb, var(--note-color), transparent 58%);
   font-size: 14px;
   font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .chord-name {
