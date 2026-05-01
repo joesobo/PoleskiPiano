@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { getStaffPlacements, orderTimedMidiNotesForStaff } from "./staff";
+import {
+  getStaffPlacements,
+  getStaffPlacementsForGroups,
+  getStaffInputTargetFromPoint,
+  getStaffPlacementForMidi,
+  groupTimedMidiNotesForStaff,
+  orderTimedMidiNotesForStaff,
+} from "./staff";
 
 describe("staff placements", () => {
   it("places middle C on the treble staff with a ledger line", () => {
@@ -25,11 +32,29 @@ describe("staff placements", () => {
     expect(placements[0].x).toBeLessThan(placements[1].x);
   });
 
+  it("stacks simultaneous chord notes in one horizontal notation slot", () => {
+    const placements = getStaffPlacementsForGroups([[60, 64, 67]]);
+
+    expect(placements.map((placement) => placement.label)).toEqual([
+      "C",
+      "E",
+      "G",
+    ]);
+    expect(new Set(placements.map((placement) => placement.x))).toHaveLength(1);
+  });
+
+  it("keeps separate note groups left-to-right", () => {
+    const placements = getStaffPlacementsForGroups([[60], [64, 67]]);
+
+    expect(placements[0].x).toBeLessThan(placements[1].x);
+    expect(placements[1].x).toBe(placements[2].x);
+  });
+
   it("keeps sequential active notes in onset order", () => {
     expect(
       orderTimedMidiNotesForStaff([
         { midi: 60, receivedAt: 1000 },
-        { midi: 59, receivedAt: 1200 },
+        { midi: 59, receivedAt: 1300 },
       ]),
     ).toEqual([60, 59]);
   });
@@ -41,5 +66,47 @@ describe("staff placements", () => {
         { midi: 59, receivedAt: 1005 },
       ]),
     ).toEqual([59, 60]);
+  });
+
+  it("groups simultaneous active notes for staff chord stacking", () => {
+    expect(
+      groupTimedMidiNotesForStaff([
+        { midi: 60, receivedAt: 1000 },
+        { midi: 67, receivedAt: 1008 },
+        { midi: 64, receivedAt: 1004 },
+        { midi: 72, receivedAt: 1300 },
+      ]),
+    ).toEqual([[60, 64, 67], [72]]);
+  });
+
+  it("treats realistic same-chord MIDI timing as one staff group", () => {
+    expect(
+      groupTimedMidiNotesForStaff([
+        { midi: 60, receivedAt: 1000 },
+        { midi: 64, receivedAt: 1120 },
+        { midi: 67, receivedAt: 1240 },
+      ]),
+    ).toEqual([[60, 64, 67]]);
+  });
+
+  it("maps a grand staff point to the nearest natural note in range", () => {
+    const d3Placement = getStaffPlacementForMidi(50);
+
+    expect(
+      getStaffInputTargetFromPoint({
+        x: 320,
+        y: d3Placement.y,
+      }),
+    ).toMatchObject({
+      midi: 50,
+      placement: {
+        label: "D",
+        x: 320,
+      },
+    });
+  });
+
+  it("does not map grand staff input outside the playable pitch band", () => {
+    expect(getStaffInputTargetFromPoint({ x: 320, y: -20 })).toBeNull();
   });
 });

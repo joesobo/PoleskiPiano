@@ -4,7 +4,17 @@ import { PianoKeyboard } from "./components/PianoKeyboard";
 import { ScaleWheel } from "./components/ScaleWheel";
 import { StaffNotation } from "./components/StaffNotation";
 import { TopBar, type ThemeMode } from "./components/TopBar";
+import {
+  type ActiveInputTransition,
+  type ActiveNote,
+  applyMidiNoteOff,
+  applyMidiNoteOn,
+  applyScreenNoteStart,
+  applyScreenNoteStop,
+  createActiveInputState,
+} from "./music/activeNotes";
 import { analyzeChord } from "./music/chords";
+import type { ChordPreview } from "./music/chordPreview";
 import {
   buildKeyboardRange,
   DEFAULT_HIGH_MIDI,
@@ -19,7 +29,7 @@ import {
   getScalePitchClasses,
   type SelectedScale,
 } from "./music/scales";
-import { orderTimedMidiNotesForStaff } from "./music/staff";
+import { groupTimedMidiNotesForStaff } from "./music/staff";
 import {
   connectWebMidi,
   type MidiNoteEvent,
@@ -27,15 +37,8 @@ import {
 } from "./services/midi";
 import { PianoAudioEngine } from "./services/pianoAudio";
 
-interface ActiveNote {
-  midi: number;
-  note: string;
-  pitchClass: PitchClass;
-  velocity: number;
-  receivedAt: number;
-}
-
 const keyboardKeys = buildKeyboardRange();
+const SCREEN_INPUT_VELOCITY = 0.5;
 const initialMidiStatus: MidiStatus = {
   supported: true,
   permission: "unknown",
@@ -44,14 +47,18 @@ const initialMidiStatus: MidiStatus = {
 
 export function App(): React.ReactElement {
   const audioEngineRef = useRef(new PianoAudioEngine());
-  const activeNotesRef = useRef<Map<number, ActiveNote>>(new Map());
+  const activeInputStateRef = useRef(createActiveInputState());
   const [midiStatus, setMidiStatus] = useState<MidiStatus>(initialMidiStatus);
-  const [activeNotes, setActiveNotes] = useState<Map<number, ActiveNote>>(
-    () => new Map(),
+  const [activeInputState, setActiveInputState] = useState(
+    createActiveInputState,
   );
   const [audioLevel, setAudioLevel] = useState(0);
   const [selectedScale, setSelectedScale] = useState<SelectedScale | null>(null);
+  const [selectedChordPreview, setSelectedChordPreview] =
+    useState<ChordPreview | null>(null);
   const [themeMode, setThemeMode] = useState<ThemeMode>("dark");
+  const [screenInputResetKey, setScreenInputResetKey] = useState(0);
+  const activeNotes = activeInputState.notes;
 
   const activeMidiNotes = useMemo(
     () => new Set(activeNotes.keys()),
@@ -61,9 +68,13 @@ export function App(): React.ReactElement {
     () => new Set([...activeNotes.values()].map((note) => note.pitchClass)),
     [activeNotes],
   );
-  const orderedActiveMidiNotes = useMemo(
-    () => orderTimedMidiNotesForStaff([...activeNotes.values()]),
+  const activeMidiNoteGroups = useMemo(
+    () => groupTimedMidiNotesForStaff([...activeNotes.values()]),
     [activeNotes],
+  );
+  const orderedActiveMidiNotes = useMemo(
+    () => activeMidiNoteGroups.flat(),
+    [activeMidiNoteGroups],
   );
   const chordAnalysis = useMemo(
     () => analyzeChord(orderedActiveMidiNotes),
@@ -73,41 +84,95 @@ export function App(): React.ReactElement {
     () => buildScaleMidiSet(selectedScale),
     [selectedScale],
   );
+  const previewMidiNotes = useMemo(
+    () => selectedChordPreview?.midiNotes ?? [],
+    [selectedChordPreview],
+  );
+  const previewMidiNoteSet = useMemo(
+    () => new Set(previewMidiNotes),
+    [previewMidiNotes],
+  );
 
-  const handleMidiEvent = useCallback((event: MidiNoteEvent): void => {
-    const midi = mapMidiInputToKeyboardMidi(event.midi);
+  const applyInputTransition = useCallback(
+    (transition: ActiveInputTransition): void => {
+      for (const midi of transition.noteOffs) {
+        audioEngineRef.current.noteOff(midi);
+      }
 
-    if (midi < DEFAULT_LOW_MIDI || midi > DEFAULT_HIGH_MIDI) {
-      return;
-    }
+      for (const note of transition.noteOns) {
+        audioEngineRef.current.noteOn(note.midi, note.velocity);
+      }
 
-    if (event.type === "noteon") {
-      const note = midiToNoteName(midi);
-      const pitchClass = midiToPitchClass(midi);
+      const latestNoteOn = transition.noteOns.at(-1);
 
-      audioEngineRef.current.noteOn(midi, event.velocity);
-      setAudioLevel(event.velocity);
-      const nextActiveNotes = new Map(activeNotesRef.current);
+      if (latestNoteOn) {
+        setAudioLevel(latestNoteOn.velocity);
+      }
 
-      nextActiveNotes.set(midi, {
-        midi,
-        note,
-        pitchClass,
-        velocity: event.velocity,
-        receivedAt: event.receivedAt,
-      });
-      activeNotesRef.current = nextActiveNotes;
-      setActiveNotes(nextActiveNotes);
-      return;
-    }
+      activeInputStateRef.current = transition.state;
+      setActiveInputState(transition.state);
+    },
+    [],
+  );
 
-    audioEngineRef.current.noteOff(midi);
-    const nextActiveNotes = new Map(activeNotesRef.current);
+  const handleMidiEvent = useCallback(
+    (event: MidiNoteEvent): void => {
+      const midi = mapMidiInputToKeyboardMidi(event.midi);
 
-    nextActiveNotes.delete(midi);
-    activeNotesRef.current = nextActiveNotes;
-    setActiveNotes(nextActiveNotes);
-  }, []);
+      if (midi < DEFAULT_LOW_MIDI || midi > DEFAULT_HIGH_MIDI) {
+        return;
+      }
+
+      if (event.type === "noteon") {
+        const previousSource = activeInputStateRef.current.source;
+
+        applyInputTransition(
+          applyMidiNoteOn(
+            activeInputStateRef.current,
+            buildActiveNote(midi, event.velocity, event.receivedAt),
+          ),
+        );
+
+        if (previousSource === "screen") {
+          setScreenInputResetKey((resetKey) => resetKey + 1);
+        }
+
+        return;
+      }
+
+      applyInputTransition(
+        applyMidiNoteOff(activeInputStateRef.current, midi),
+      );
+    },
+    [applyInputTransition],
+  );
+
+  const handleScreenNoteStart = useCallback(
+    (midi: number): void => {
+      if (midi < DEFAULT_LOW_MIDI || midi > DEFAULT_HIGH_MIDI) {
+        return;
+      }
+
+      applyInputTransition(
+        applyScreenNoteStart(
+          activeInputStateRef.current,
+          buildActiveNote(midi, SCREEN_INPUT_VELOCITY, performance.now()),
+        ),
+      );
+    },
+    [applyInputTransition],
+  );
+
+  const handleScalePitchClassStart = useCallback(
+    (pitchClass: PitchClass): void => {
+      handleScreenNoteStart(48 + pitchClassToSemitone(pitchClass));
+    },
+    [handleScreenNoteStart],
+  );
+
+  const handleScreenNoteStop = useCallback((): void => {
+    applyInputTransition(applyScreenNoteStop(activeInputStateRef.current));
+  }, [applyInputTransition]);
 
   useEffect(() => {
     let isMounted = true;
@@ -162,8 +227,10 @@ export function App(): React.ReactElement {
         midiStatus={midiStatus}
         audioLevel={audioLevel}
         selectedScale={selectedScale}
+        selectedChordPreview={selectedChordPreview}
         themeMode={themeMode}
         onScaleChange={setSelectedScale}
+        onChordPreviewChange={setSelectedChordPreview}
         onThemeModeChange={setThemeMode}
       />
 
@@ -172,19 +239,50 @@ export function App(): React.ReactElement {
           <ScaleWheel
             scale={selectedScale}
             activePitchClasses={activePitchClasses}
+            onPitchClassInputStart={handleScalePitchClassStart}
+            onInputStop={handleScreenNoteStop}
+            inputResetKey={screenInputResetKey}
           />
-          <ChordDisplay analysis={chordAnalysis} />
-          <StaffNotation activeMidiNotes={orderedActiveMidiNotes} />
+          <ChordDisplay
+            analysis={chordAnalysis}
+            previewChord={selectedChordPreview}
+          />
+          <StaffNotation
+            activeMidiNotes={orderedActiveMidiNotes}
+            activeMidiNoteGroups={activeMidiNoteGroups}
+            previewMidiNotes={previewMidiNotes}
+            onNoteInputStart={handleScreenNoteStart}
+            onInputStop={handleScreenNoteStop}
+            inputResetKey={screenInputResetKey}
+          />
         </div>
       </main>
 
       <PianoKeyboard
         keys={keyboardKeys}
         activeMidiNotes={activeMidiNotes}
+        previewMidiNotes={previewMidiNoteSet}
         scaleMidiNotes={scaleMidiNotes}
+        onNoteInputStart={handleScreenNoteStart}
+        onInputStop={handleScreenNoteStop}
+        inputResetKey={screenInputResetKey}
       />
     </div>
   );
+}
+
+function buildActiveNote(
+  midi: number,
+  velocity: number,
+  receivedAt: number,
+): ActiveNote {
+  return {
+    midi,
+    note: midiToNoteName(midi),
+    pitchClass: midiToPitchClass(midi),
+    velocity,
+    receivedAt,
+  };
 }
 
 function buildScaleMidiSet(scale: SelectedScale | null): Set<number> {

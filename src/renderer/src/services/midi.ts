@@ -65,7 +65,11 @@ export async function connectWebMidi(
     const attachInputs = (): void => {
       for (const input of access.inputs.values()) {
         input.onmidimessage = (message) => {
-          const parsed = parseMidiMessage(message, input.name ?? "MIDI Input");
+          const parsed = parseMidiMessage(
+            message,
+            input.name ?? "MIDI Input",
+            performance.now(),
+          );
           if (parsed) {
             onMidiEvent(parsed);
           }
@@ -111,9 +115,10 @@ function summarizeInputs(access: MIDIAccess): MidiInputSummary[] {
   }));
 }
 
-function parseMidiMessage(
+export function parseMidiMessage(
   message: MIDIMessageEvent,
   deviceName: string,
+  receivedAt = performance.now(),
 ): MidiNoteEvent | null {
   if (!message.data || message.data.length < 2) {
     return null;
@@ -133,7 +138,7 @@ function parseMidiMessage(
       rawVelocity,
       channel,
       deviceName,
-      receivedAt: message.receivedTime,
+      receivedAt,
     };
   }
 
@@ -145,7 +150,7 @@ function parseMidiMessage(
       rawVelocity,
       channel,
       deviceName,
-      receivedAt: message.receivedTime,
+      receivedAt,
     };
   }
 
