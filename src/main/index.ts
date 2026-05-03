@@ -8,7 +8,14 @@ import {
   type MenuItemConstructorOptions,
 } from "electron";
 import { join } from "node:path";
+import {
+  listPracticeSongFiles,
+  savePracticeSongFile,
+} from "./practiceSongFiles";
 
+const APP_NAME = "PoleskiPiano";
+
+app.setName(APP_NAME);
 app.commandLine.appendSwitch("enable-features", "WebMidi");
 app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
 
@@ -33,7 +40,7 @@ function configureApplicationMenu(): void {
   const appMenu: MenuItemConstructorOptions[] = isMac
     ? [
         {
-          label: app.name,
+          label: APP_NAME,
           submenu: [
             { role: "about" },
             { type: "separator" },
@@ -118,6 +125,14 @@ function configureThemeMenuUpdates(): void {
   });
 }
 
+function configurePracticeSongFiles(): void {
+  ipcMain.handle("practice-songs:list", async () => listPracticeSongFiles());
+  ipcMain.handle(
+    "practice-songs:save",
+    async (_event, request: unknown) => savePracticeSongFile(request),
+  );
+}
+
 function updateAppearanceMenuLabel(themeMode: ThemeMode): void {
   const menuItem = Menu.getApplicationMenu()?.getMenuItemById("appearance-toggle");
 
@@ -127,13 +142,21 @@ function updateAppearanceMenuLabel(themeMode: ThemeMode): void {
   }
 }
 
+function getAppIconPath(): string {
+  return process.env.ELECTRON_RENDERER_URL
+    ? join(process.cwd(), "src/renderer/public/app-icon.png")
+    : join(__dirname, "../renderer/app-icon.png");
+}
+
 function createWindow(): void {
+  const appIconPath = getAppIconPath();
   const mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
     minWidth: 980,
     minHeight: 660,
-    title: "PoleskiPiano",
+    title: APP_NAME,
+    icon: appIconPath,
     backgroundColor: "#100f0f",
     titleBarStyle: isMac ? "hiddenInset" : "default",
     trafficLightPosition: { x: 14, y: 14 },
@@ -158,8 +181,13 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  if (isMac) {
+    app.dock?.setIcon(getAppIconPath());
+  }
+
   configureApplicationMenu();
   configureThemeMenuUpdates();
+  configurePracticeSongFiles();
   configureMidiPermissions();
   createWindow();
 

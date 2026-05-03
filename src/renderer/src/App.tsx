@@ -8,6 +8,7 @@ import { ScaleWheel } from "./components/ScaleWheel";
 import { StaffNotation } from "./components/StaffNotation";
 import {
   NONE_PRACTICE_SONG_ID,
+  PENDING_PRACTICE_SONG_ID,
   TopBar,
   type ThemeMode,
 } from "./components/TopBar";
@@ -34,7 +35,19 @@ import {
 } from "./music/notes";
 import { PRACTICE_SONG_OPTIONS } from "./music/practiceSongLibrary";
 import {
+  createNewPracticeSongDraft,
+  createPracticeSongDraftFromSong,
+  getPracticeSongDraftCurrentNotes,
+  movePracticeSongDraftStep,
+  preparePracticeSongDraftForSave,
+  setPracticeSongDraftError,
+  setPracticeSongDraftTitle,
+  togglePracticeSongDraftMidi,
+  type PracticeSongDraft,
+} from "./music/practiceSongBuilder";
+import {
   activeMidiNotesMatchPracticeStep,
+  createPracticeSongOptions,
   type PracticeStep,
   type PracticeSong,
 } from "./music/practiceSongs";
@@ -49,6 +62,10 @@ import {
   type MidiStatus,
 } from "./services/midi";
 import { PianoAudioEngine } from "./services/pianoAudio";
+import {
+  listPracticeSongFiles,
+  savePracticeSongFile,
+} from "./services/practiceSongFiles";
 
 const keyboardKeys = buildKeyboardRange();
 const SCREEN_INPUT_VELOCITY = 0.5;
@@ -67,6 +84,7 @@ export function App(): React.ReactElement {
   const audioEngineRef = useRef(new PianoAudioEngine());
   const activeInputStateRef = useRef(createActiveInputState());
   const practiceStateRef = useRef(initialPracticeState);
+  const practiceSongBuilderDraftRef = useRef<PracticeSongDraft | null>(null);
   const [midiStatus, setMidiStatus] = useState<MidiStatus>(initialMidiStatus);
   const [activeInputState, setActiveInputState] = useState(
     createActiveInputState,
@@ -75,23 +93,31 @@ export function App(): React.ReactElement {
   const [selectedScale, setSelectedScale] = useState<SelectedScale | null>(null);
   const [selectedChordPreview, setSelectedChordPreview] =
     useState<ChordPreview | null>(null);
+  const [practiceSongOptions, setPracticeSongOptions] = useState(
+    PRACTICE_SONG_OPTIONS,
+  );
   const [selectedPracticeSongId, setSelectedPracticeSongId] = useState(
     NONE_PRACTICE_SONG_ID,
   );
+  const [pendingPracticeSongTitle, setPendingPracticeSongTitle] = useState("");
+  const [practiceSongBuilderDraft, setPracticeSongBuilderDraft] =
+    useState<PracticeSongDraft | null>(null);
   const [practiceStepIndex, setPracticeStepIndex] = useState(0);
   const [isPracticePlaying, setIsPracticePlaying] = useState(false);
   const [themeMode, setThemeMode] = useState<ThemeMode>("dark");
   const [screenInputResetKey, setScreenInputResetKey] = useState(0);
   const activeNotes = activeInputState.notes;
   const selectedPracticeSong = useMemo(() => {
-    const option = PRACTICE_SONG_OPTIONS.find(
+    const option = practiceSongOptions.find(
       (practiceSongOption) =>
         practiceSongOption.id === selectedPracticeSongId &&
         practiceSongOption.status === "valid",
     );
 
     return option?.status === "valid" ? option.song : null;
-  }, [selectedPracticeSongId]);
+  }, [practiceSongOptions, selectedPracticeSongId]);
+  const hasPendingPracticeSong =
+    selectedPracticeSongId === PENDING_PRACTICE_SONG_ID;
   const currentPracticeStep = selectedPracticeSong
     ? selectedPracticeSong.steps[practiceStepIndex] ?? null
     : null;
@@ -126,25 +152,54 @@ export function App(): React.ReactElement {
     () => buildScaleMidiSet(selectedScale),
     [selectedScale],
   );
+  const practiceSongBuilderNotes = useMemo(
+    () =>
+      practiceSongBuilderDraft
+        ? getPracticeSongDraftCurrentNotes(practiceSongBuilderDraft)
+        : [],
+    [practiceSongBuilderDraft],
+  );
   const previewMidiNotes = useMemo(
-    () => currentPracticeStep?.midiNotes ?? selectedChordPreview?.midiNotes ?? [],
-    [currentPracticeStep, selectedChordPreview],
+    () =>
+      practiceSongBuilderDraft
+        ? practiceSongBuilderNotes.map((note) => note.midi)
+        : currentPracticeStep?.midiNotes ?? selectedChordPreview?.midiNotes ?? [],
+    [
+      currentPracticeStep,
+      practiceSongBuilderDraft,
+      practiceSongBuilderNotes,
+      selectedChordPreview,
+    ],
   );
   const previewMidiNoteSet = useMemo(
     () => new Set(previewMidiNotes),
     [previewMidiNotes],
   );
   const chordDisplayPreview = useMemo(
-    () =>
-      buildChordDisplayPreview(
+    () => {
+      if (practiceSongBuilderDraft) {
+        return {
+          kind: "practice" as const,
+          kicker: "Practice Song Builder",
+          name: practiceSongBuilderDraft.title.trim() || "Untitled song",
+          stepCount: `${practiceSongBuilderDraft.stepIndex + 1}/${practiceSongBuilderDraft.steps.length}`,
+          notes: practiceSongBuilderNotes,
+          message: practiceSongBuilderDraft.error,
+        };
+      }
+
+      return buildChordDisplayPreview(
         selectedPracticeSong,
         currentPracticeStep,
         practiceStepPosition,
         selectedChordPreview,
-      ),
+      );
+    },
     [
       currentPracticeStep,
       practiceStepPosition,
+      practiceSongBuilderDraft,
+      practiceSongBuilderNotes,
       selectedChordPreview,
       selectedPracticeSong,
     ],
@@ -176,6 +231,7 @@ export function App(): React.ReactElement {
       const practiceState = practiceStateRef.current;
 
       if (
+        practiceSongBuilderDraftRef.current ||
         !practiceState.isPlaying ||
         !practiceState.song ||
         transition.state.source !== "midi" ||
@@ -204,6 +260,11 @@ export function App(): React.ReactElement {
     },
     [],
   );
+  const togglePracticeSongBuilderNote = useCallback((midi: number): void => {
+    setPracticeSongBuilderDraft((draft) =>
+      draft ? togglePracticeSongDraftMidi(draft, midi) : draft,
+    );
+  }, []);
 
   const handleMidiEvent = useCallback(
     (event: MidiNoteEvent): void => {
@@ -221,6 +282,12 @@ export function App(): React.ReactElement {
         );
 
         applyInputTransition(transition);
+        if (
+          practiceSongBuilderDraftRef.current &&
+          transition.noteOns.length > 0
+        ) {
+          togglePracticeSongBuilderNote(midi);
+        }
         maybeAdvancePracticeStep(transition);
 
         if (previousSource === "screen") {
@@ -235,7 +302,7 @@ export function App(): React.ReactElement {
       applyInputTransition(transition);
       maybeAdvancePracticeStep(transition);
     },
-    [applyInputTransition, maybeAdvancePracticeStep],
+    [applyInputTransition, maybeAdvancePracticeStep, togglePracticeSongBuilderNote],
   );
 
   const handleScreenNoteStart = useCallback(
@@ -244,14 +311,21 @@ export function App(): React.ReactElement {
         return;
       }
 
-      applyInputTransition(
-        applyScreenNoteStart(
-          activeInputStateRef.current,
-          buildActiveNote(midi, SCREEN_INPUT_VELOCITY, performance.now()),
-        ),
+      const transition = applyScreenNoteStart(
+        activeInputStateRef.current,
+        buildActiveNote(midi, SCREEN_INPUT_VELOCITY, performance.now()),
       );
+
+      applyInputTransition(transition);
+
+      if (
+        practiceSongBuilderDraftRef.current &&
+        transition.noteOns.length > 0
+      ) {
+        togglePracticeSongBuilderNote(midi);
+      }
     },
-    [applyInputTransition],
+    [applyInputTransition, togglePracticeSongBuilderNote],
   );
 
   const handleScalePitchClassStart = useCallback(
@@ -264,37 +338,98 @@ export function App(): React.ReactElement {
   const handleScreenNoteStop = useCallback((): void => {
     applyInputTransition(applyScreenNoteStop(activeInputStateRef.current));
   }, [applyInputTransition]);
-  const handlePracticeSongChange = useCallback((practiceSongId: string): void => {
-    setSelectedPracticeSongId(practiceSongId);
-    setPracticeStepIndex(0);
+  const handlePracticeSongChange = useCallback(
+    (practiceSongId: string): void => {
+      setSelectedPracticeSongId(practiceSongId);
+      setPendingPracticeSongTitle("");
+      setPracticeStepIndex(0);
+      setIsPracticePlaying(false);
+
+      if (practiceSongId === PENDING_PRACTICE_SONG_ID) {
+        setSelectedChordPreview(null);
+        return;
+      }
+
+      if (practiceSongId === NONE_PRACTICE_SONG_ID) {
+        return;
+      }
+
+      const option = practiceSongOptions.find(
+        (practiceSongOption) =>
+          practiceSongOption.id === practiceSongId &&
+          practiceSongOption.status === "valid",
+      );
+
+      if (option?.status !== "valid") {
+        return;
+      }
+
+      setSelectedChordPreview(null);
+
+      if (option.song.scale) {
+        setSelectedScale(option.song.scale);
+      }
+    },
+    [practiceSongOptions],
+  );
+  const handlePendingPracticeSongTitleChange = useCallback(
+    (title: string): void => {
+      setPendingPracticeSongTitle(title);
+      setIsPracticePlaying(false);
+      setSelectedPracticeSongId(PENDING_PRACTICE_SONG_ID);
+      setSelectedChordPreview(null);
+      setPracticeStepIndex(0);
+    },
+    [],
+  );
+  const handlePendingPracticeSongCancel = useCallback((): void => {
+    setPendingPracticeSongTitle("");
+    setSelectedPracticeSongId(NONE_PRACTICE_SONG_ID);
     setIsPracticePlaying(false);
-
-    if (practiceSongId === NONE_PRACTICE_SONG_ID) {
-      return;
-    }
-
-    const option = PRACTICE_SONG_OPTIONS.find(
-      (practiceSongOption) =>
-        practiceSongOption.id === practiceSongId &&
-        practiceSongOption.status === "valid",
-    );
-
-    if (option?.status !== "valid") {
-      return;
-    }
-
-    setSelectedChordPreview(null);
-
-    if (option.song.scale) {
-      setSelectedScale(option.song.scale);
-    }
   }, []);
+  const handleChordPreviewChange = useCallback(
+    (preview: ChordPreview | null): void => {
+      setSelectedChordPreview(preview);
+
+      if (!preview) {
+        return;
+      }
+
+      setSelectedPracticeSongId(NONE_PRACTICE_SONG_ID);
+      setPendingPracticeSongTitle("");
+      setPracticeStepIndex(0);
+      setIsPracticePlaying(false);
+    },
+    [],
+  );
+  const handlePracticeSongBuilderTitleChange = useCallback(
+    (title: string): void => {
+      setPracticeSongBuilderDraft((draft) =>
+        draft ? setPracticeSongDraftTitle(draft, title) : draft,
+      );
+    },
+    [],
+  );
   const handlePracticeBack = useCallback((): void => {
+    if (practiceSongBuilderDraftRef.current) {
+      setPracticeSongBuilderDraft((draft) =>
+        draft ? movePracticeSongDraftStep(draft, "previous") : draft,
+      );
+      return;
+    }
+
     setPracticeStepIndex((currentStepIndex) =>
       Math.max(0, currentStepIndex - 1),
     );
   }, []);
   const handlePracticeNext = useCallback((): void => {
+    if (practiceSongBuilderDraftRef.current) {
+      setPracticeSongBuilderDraft((draft) =>
+        draft ? movePracticeSongDraftStep(draft, "next") : draft,
+      );
+      return;
+    }
+
     setPracticeStepIndex((currentStepIndex) => {
       if (!selectedPracticeSong) {
         return 0;
@@ -309,6 +444,88 @@ export function App(): React.ReactElement {
   const handlePracticeRestart = useCallback((): void => {
     setPracticeStepIndex(0);
   }, []);
+  const handlePracticeSongBuilderStart = useCallback((): void => {
+    setIsPracticePlaying(false);
+    setSelectedChordPreview(null);
+
+    if (selectedPracticeSong) {
+      setPracticeSongBuilderDraft(
+        createPracticeSongDraftFromSong(selectedPracticeSong, practiceStepIndex),
+      );
+      return;
+    }
+
+    if (pendingPracticeSongTitle.trim().length > 0) {
+      setPracticeSongBuilderDraft(
+        createNewPracticeSongDraft(pendingPracticeSongTitle),
+      );
+    }
+  }, [pendingPracticeSongTitle, practiceStepIndex, selectedPracticeSong]);
+  const handlePracticeSongBuilderSave = useCallback(async (): Promise<void> => {
+    const draft = practiceSongBuilderDraftRef.current;
+
+    if (!draft) {
+      return;
+    }
+
+    const saveResult = preparePracticeSongDraftForSave(
+      draft,
+      selectedScale,
+      practiceSongOptions.map((option) => option.path),
+    );
+
+    if (!saveResult.ok) {
+      setPracticeSongBuilderDraft((currentDraft) =>
+        currentDraft
+          ? setPracticeSongDraftError(currentDraft, saveResult.error)
+          : currentDraft,
+      );
+      return;
+    }
+
+    const { stepIndex, ...request } = saveResult.request;
+
+    try {
+      const response = await savePracticeSongFile(request);
+      const nextOptions = createPracticeSongOptions(response.files);
+
+      setPracticeSongOptions(nextOptions);
+      setPracticeSongBuilderDraft(null);
+      setPendingPracticeSongTitle("");
+      setSelectedPracticeSongId(response.path);
+      setPracticeStepIndex(stepIndex);
+      setIsPracticePlaying(false);
+      setSelectedChordPreview(null);
+    } catch (error) {
+      setPracticeSongBuilderDraft((currentDraft) =>
+        currentDraft
+          ? setPracticeSongDraftError(currentDraft, getErrorMessage(error))
+          : currentDraft,
+      );
+    }
+  }, [practiceSongOptions, selectedScale]);
+  const handlePracticeSongBuilderCancel = useCallback((): void => {
+    const draft = practiceSongBuilderDraftRef.current;
+
+    if (!draft) {
+      return;
+    }
+
+    if (draft.isDirty && !window.confirm("Discard unsaved changes?")) {
+      return;
+    }
+
+    setPracticeSongBuilderDraft(null);
+
+    if (draft.source === "new") {
+      setPendingPracticeSongTitle(draft.originalTitle);
+      setSelectedPracticeSongId(
+        draft.originalTitle.trim().length > 0
+          ? PENDING_PRACTICE_SONG_ID
+          : NONE_PRACTICE_SONG_ID,
+      );
+    }
+  }, []);
 
   useEffect(() => {
     practiceStateRef.current = {
@@ -317,6 +534,28 @@ export function App(): React.ReactElement {
       isPlaying: isPracticePlaying,
     };
   }, [isPracticePlaying, practiceStepIndex, selectedPracticeSong]);
+
+  useEffect(() => {
+    practiceSongBuilderDraftRef.current = practiceSongBuilderDraft;
+  }, [practiceSongBuilderDraft]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    listPracticeSongFiles()
+      .then((files) => {
+        if (isMounted) {
+          setPracticeSongOptions(createPracticeSongOptions(files));
+        }
+      })
+      .catch((error) => {
+        console.warn("Practice Songs unavailable", error);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -377,6 +616,46 @@ export function App(): React.ReactElement {
     void enableAudio();
   }, [enableAudio]);
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (
+        event.defaultPrevented ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey ||
+        shouldIgnorePracticeStepShortcut(event.target)
+      ) {
+        return;
+      }
+
+      const canNavigatePracticeSteps =
+        practiceSongBuilderDraft !== null || selectedPracticeSong !== null;
+
+      if (!canNavigatePracticeSteps) {
+        return;
+      }
+
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        handlePracticeBack();
+      }
+
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        handlePracticeNext();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    handlePracticeBack,
+    handlePracticeNext,
+    practiceSongBuilderDraft,
+    selectedPracticeSong,
+  ]);
+
   return (
     <div className="app-shell" data-theme={themeMode}>
       <TopBar
@@ -384,13 +663,24 @@ export function App(): React.ReactElement {
         audioLevel={audioLevel}
         selectedScale={selectedScale}
         selectedChordPreview={selectedChordPreview}
-        practiceSongOptions={PRACTICE_SONG_OPTIONS}
+        practiceSongOptions={practiceSongOptions}
         selectedPracticeSongId={selectedPracticeSongId}
         hasSelectedPracticeSong={selectedPracticeSong !== null}
+        hasPendingPracticeSong={hasPendingPracticeSong}
+        pendingPracticeSongTitle={pendingPracticeSongTitle}
         isPracticePlaying={isPracticePlaying}
+        isPracticeSongBuilderActive={practiceSongBuilderDraft !== null}
+        practiceSongBuilderTitle={practiceSongBuilderDraft?.title ?? null}
         onScaleChange={setSelectedScale}
-        onChordPreviewChange={setSelectedChordPreview}
+        onChordPreviewChange={handleChordPreviewChange}
         onPracticeSongChange={handlePracticeSongChange}
+        onPendingPracticeSongTitleChange={handlePendingPracticeSongTitleChange}
+        onPendingPracticeSongSubmit={handlePracticeSongBuilderStart}
+        onPendingPracticeSongCancel={handlePendingPracticeSongCancel}
+        onPracticeSongBuilderTitleChange={handlePracticeSongBuilderTitleChange}
+        onPracticeSongBuilderStart={handlePracticeSongBuilderStart}
+        onPracticeSongBuilderSave={handlePracticeSongBuilderSave}
+        onPracticeSongBuilderCancel={handlePracticeSongBuilderCancel}
         onPracticeBack={handlePracticeBack}
         onPracticeNext={handlePracticeNext}
         onPracticeRestart={handlePracticeRestart}
@@ -502,4 +792,20 @@ function buildChordDisplayPreview(
   }
 
   return null;
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Unable to save Practice Song";
+}
+
+function shouldIgnorePracticeStepShortcut(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  return Boolean(
+    target.closest(
+      'input, textarea, select, [role="listbox"], [aria-haspopup="listbox"], [contenteditable="true"]',
+    ),
+  );
 }

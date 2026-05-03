@@ -13,6 +13,7 @@ export interface ChordDisplayPreview {
   name: string;
   stepCount?: string;
   colorPitchClass?: PitchClass;
+  message?: string | null;
   notes: ChordDisplayPreviewNote[];
 }
 
@@ -68,6 +69,9 @@ export function ChordDisplay({
           </span>
         ))}
       </div>
+      {preview?.message ? (
+        <div className="practice-preview-error">{preview.message}</div>
+      ) : null}
       <div
         className="chord-name"
         style={analysis.root ? noteCssVars(analysis.root) : undefined}

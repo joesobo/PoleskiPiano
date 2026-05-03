@@ -87,7 +87,7 @@ button {
   --black-key-text: var(--base-100);
   --black-key-shadow: rgba(0, 0, 0, 0.42);
   display: grid;
-  grid-template-rows: 68px minmax(0, 1fr) 212px;
+  grid-template-rows: auto minmax(0, 1fr) 212px;
   min-height: 100vh;
   color: var(--app-fg);
   background: var(--app-bg);
@@ -130,20 +130,20 @@ button {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 14px;
-  align-items: center;
-  padding: 12px 24px 12px 86px;
+  align-items: start;
+  padding: 12px 24px 10px 86px;
   border-bottom: 1px solid var(--border-subtle);
   background: var(--top-bar-bg);
   -webkit-app-region: drag;
 }
 
 .top-bar button,
-.top-bar select {
+.top-bar select,
+.top-bar input {
   -webkit-app-region: no-drag;
 }
 
 .status-group,
-.top-controls,
 .select-control {
   display: flex;
   align-items: center;
@@ -153,6 +153,7 @@ button {
 }
 
 .signal-status {
+  min-block-size: 34px;
   gap: 12px;
   padding: 0 10px 0 0;
 }
@@ -194,10 +195,30 @@ button {
   transition: inline-size 140ms ease-out;
 }
 
-.top-controls {
+.top-bar-content {
+  display: grid;
+  grid-template-rows: auto auto;
+  gap: 8px;
+  min-width: 0;
+}
+
+.top-select-row {
+  display: flex;
+  align-items: center;
   justify-content: end;
+  min-width: 0;
+  gap: 10px;
   color: var(--text-muted);
   font-size: 13px;
+}
+
+.top-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: end;
+  min-block-size: 34px;
+  min-width: 0;
+  gap: 8px;
 }
 
 .select-control {
@@ -218,6 +239,10 @@ button {
   position: relative;
 }
 
+.practice-song-control {
+  margin-inline-start: auto;
+}
+
 .top-select {
   position: relative;
   inline-size: 136px;
@@ -228,7 +253,13 @@ button {
 }
 
 .practice-song-select {
-  inline-size: 178px;
+  inline-size: 220px;
+}
+
+.practice-song-menu {
+  inline-size: 260px;
+  inset-inline-start: 0;
+  inset-inline-end: auto;
 }
 
 .top-select-trigger {
@@ -243,6 +274,11 @@ button {
   color: var(--control-fg);
   padding: 0 9px 0 10px;
   cursor: pointer;
+}
+
+.top-select-trigger:disabled {
+  cursor: default;
+  opacity: 0.58;
 }
 
 .top-select-selected-name,
@@ -292,6 +328,43 @@ button {
 
 .practice-song-option {
   gap: 8px;
+}
+
+.new-song-option {
+  border-block-start: 1px solid var(--control-border);
+}
+
+.new-song-composer,
+.practice-song-builder-row {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+  gap: 8px;
+}
+
+.practice-song-title-field {
+  display: inline-grid;
+  grid-template-columns: auto minmax(160px, 240px);
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.practice-song-title-field input {
+  inline-size: 100%;
+  min-inline-size: 0;
+  block-size: 34px;
+  border: 1px solid var(--control-border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--control-bg), var(--control-fg) 4%);
+  color: var(--control-fg);
+  padding: 0 10px;
+  text-transform: none;
 }
 
 .top-select-option[aria-disabled="true"] {
@@ -351,8 +424,17 @@ button {
   line-height: 1;
 }
 
+.practice-control-button:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+
 .practice-play-button {
   font-size: 14px;
+}
+
+.practice-save-button {
+  color: var(--green);
 }
 
 .practice-surface {
@@ -442,7 +524,7 @@ button {
 }
 
 .chord-panel {
-  grid-template-rows: 1fr auto auto auto auto 1fr;
+  grid-template-rows: 1fr auto auto auto auto auto 1fr;
   row-gap: 10px;
 }
 
@@ -543,6 +625,14 @@ button {
   block-size: 24px;
   padding: 0 9px;
   opacity: 0.44;
+}
+
+.practice-preview-error {
+  max-inline-size: 260px;
+  color: var(--red);
+  font-size: 12px;
+  font-weight: 750;
+  text-align: center;
 }
 
 .staff-panel {
@@ -757,9 +847,17 @@ button {
     grid-template-columns: 1fr 1fr;
   }
 
-  .top-controls {
+  .top-bar-content {
     grid-column: 1 / -1;
+  }
+
+  .top-select-row,
+  .top-action-row {
     justify-content: center;
+  }
+
+  .practice-song-control {
+    margin-inline-start: 0;
   }
 
   .middle-grid {

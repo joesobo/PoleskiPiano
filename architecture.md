@@ -9,9 +9,9 @@ Living file map for PoleskiPiano. Update before committing whenever files are ad
 - `CONTEXT.md` - Product context, v0 decisions, layout contract, and deferred scope.
 - `README.md` - Project overview, run commands, verification commands, v0 scope, and deferred features.
 - `architecture.md` - Living file map for this repository.
-- `electron.vite.config.ts` - Electron Vite build configuration for main, preload, and React renderer targets.
+- `electron.vite.config.ts` - Electron Vite build configuration for main, preload, and React renderer targets, including the dev-server Practice Song list/save HTTP bridge used when the renderer is opened in a browser.
 - `package-lock.json` - NPM dependency lockfile for the Electron/React/Tone scaffold.
-- `package.json` - Project metadata, scripts including MIDI song import, runtime dependencies, and dev dependencies.
+- `package.json` - Project metadata including the `PoleskiPiano` product name, scripts including MIDI song import, runtime dependencies, and dev dependencies.
 - `tsconfig.json` - Shared strict TypeScript configuration for Electron, renderer, and tests.
 - `vitest.config.ts` - Vitest configuration excluding build output, dependencies, Git internals, and nested in-repo worktrees from test discovery.
 
@@ -45,40 +45,44 @@ Living file map for PoleskiPiano. Update before committing whenever files are ad
 
 - `scripts/midi-to-song-json.mjs` - Dependency-free Standard MIDI File importer that converts local `.mid` files into Practice Song JSON with transpose, grouping, track/channel filtering, and range-warning options.
 - `scripts/midi-to-song-json.test.mjs` - Importer tests covering MIDI parsing, simultaneous-note grouping, track/channel filtering, out-of-range warnings, and Practice Song JSON output.
+- `scripts/run-electron-vite.mjs` - Dev/preview launcher that copies Electron into ignored `.electron-dev/PoleskiPiano.app`, patches the macOS bundle and executable name to `PoleskiPiano`, then runs Electron Vite with the patched executable so Dock hover text uses the app name in local development.
 
 ## src/main
 
-- `src/main/index.ts` - Electron main process entrypoint; creates the native window, permits Web MIDI plus launch-time audio start, owns the native app menu including View appearance switching, and updates the appearance menu label from renderer theme state.
+- `src/main/index.ts` - Electron main process entrypoint; sets the native app name to `PoleskiPiano`, creates the native window with the app icon, permits Web MIDI plus launch-time audio start, owns the native app menu including View appearance switching, updates the appearance menu label from renderer theme state, and wires root `songs/` list/save IPC for Practice Song Builder.
+- `src/main/practiceSongFiles.ts` - Node-side Practice Song file service for listing/saving root `songs/*.json`, validating IPC/dev-server save payloads, normalizing filenames, and preventing path traversal.
 
 ## src/preload
 
-- `src/preload/index.ts` - Electron preload bridge exposing app/platform metadata, native theme-toggle menu events, and renderer-to-main theme mode updates.
+- `src/preload/index.ts` - Electron preload bridge exposing app/platform metadata, native theme-toggle menu events, renderer-to-main theme mode updates, and Practice Song list/save IPC wrappers.
 
 ## src/renderer
 
-- `src/renderer/index.html` - Renderer HTML shell loaded by Vite/Electron.
+- `src/renderer/index.html` - Renderer HTML shell loaded by Vite/Electron, including the app icon link.
 
 ## src/renderer/public
 
-- `src/renderer/public/favicon.svg` - Small SVG app favicon served by the renderer dev server and production build.
+- `src/renderer/public/app-icon.png` - PNG export of the app icon used by Electron for the native window and macOS dock.
+- `src/renderer/public/app-icon.svg` - Clean SVG app icon source using a rounded piano-key silhouette and Flexoki note-color accents, served by the renderer favicon link.
+- `src/renderer/public/favicon.svg` - SVG favicon matching the app icon for older icon consumers.
 
 ## src/renderer/src
 
-- `src/renderer/src/App.tsx` - Main practice-surface state container; coordinates MIDI and on-screen input sources, automatic audio, optional scale, chord preview, Practice Song state, MIDI-only step advancement, press-ordered live chord, staff, and keyboard UI.
+- `src/renderer/src/App.tsx` - Main practice-surface state container; coordinates MIDI and on-screen input sources, automatic audio, optional scale, mutually-exclusive chord preview and Practice Song selection, Practice Song Builder drafts, MIDI-only step advancement, arrow-key step navigation, press-ordered live chord, staff, and keyboard UI.
 - `src/renderer/src/main.tsx` - React renderer entrypoint.
 - `src/renderer/src/styles.css` - Flexoki-inspired light/dark app theming, layout, staff, and piano keyboard CSS.
-- `src/renderer/src/styles.test.ts` - CSS regression tests for piano key stacking and theme toggle styles.
+- `src/renderer/src/styles.test.ts` - CSS regression tests for piano key stacking, theme toggle styles, dropdown sizing, and stable top-bar practice mode layout.
 - `src/renderer/src/vite-env.d.ts` - Vite client type references.
 
 ## src/renderer/src/components
 
-- `src/renderer/src/components/ChordDisplay.tsx` - Live chord name plus optional Chord Preview or Practice Preview context, song step count, and colored note-pill display.
+- `src/renderer/src/components/ChordDisplay.tsx` - Live chord name plus optional Chord Preview, Practice Preview, or builder draft context, song step count, builder save errors, and colored note-pill display.
 - `src/renderer/src/components/PianoKeyboard.tsx` - Playable C2-C5 37-key keyboard UI with labels, scale tinting, chord preview target markers, pointer input, and pressed states.
 - `src/renderer/src/components/ScaleWheel.tsx` - Playable selected or no-key pitch-class circle with active-note highlighting and octave-3 pointer input.
 - `src/renderer/src/components/StaffNotation.test.tsx` - Staff note-head, stacking, and hover-target rendering tests.
 - `src/renderer/src/components/StaffNotation.tsx` - Playable SVG grand staff with treble/bass clefs, stacked ghosted chord preview notes, compact colored active-note groups, hover targets, and ledger lines.
-- `src/renderer/src/components/TopBar.test.ts` - Top bar chord preview option state tests.
-- `src/renderer/src/components/TopBar.tsx` - Compact MIDI/audio signal cluster, scale selector, Practice Song selector and icon controls, and conditional chord preview selector.
+- `src/renderer/src/components/TopBar.test.ts` - Top bar chord preview visibility, chord preview option state, practice song option state, and practice-control icon tests.
+- `src/renderer/src/components/TopBar.tsx` - Compact MIDI/audio signal cluster, always-visible Scale/Chord Preview/Song selector row, selection-only Practice Song selector with a `New Song` option, pending-title composer in the temporary second row, and temporary second-row practice/builder icon controls.
 
 ## src/renderer/src/music
 
@@ -91,9 +95,11 @@ Living file map for PoleskiPiano. Update before committing whenever files are ad
 - `src/renderer/src/music/colors.ts` - Flexoki accent palette plus stable note and root-colored chord mapping.
 - `src/renderer/src/music/notes.ts` - MIDI/note conversion, incoming keyboard transposition, C2-C5 keyboard model, pitch-class helpers, and velocity normalization.
 - `src/renderer/src/music/notes.test.ts` - Note conversion and 37-key range tests.
+- `src/renderer/src/music/practiceSongBuilder.ts` - Practice Song Builder draft model, note toggling, step navigation, title/scale/file validation, slug generation, and low-to-high step serialization.
+- `src/renderer/src/music/practiceSongBuilder.test.ts` - Practice Song Builder draft editing, save validation, slug, and serialization tests.
 - `src/renderer/src/music/practiceSongLibrary.ts` - Vite raw-file loader that discovers root `songs/*.json` and turns them into Practice Song selector options.
-- `src/renderer/src/music/practiceSongs.ts` - Practice Song JSON validation, Practice Step grammar parsing, optional scale parsing, disabled invalid-song option construction, and exact MIDI set matching.
-- `src/renderer/src/music/practiceSongs.test.ts` - Practice Step parsing, Practice Song validation, invalid selector option, and exact-match tests.
+- `src/renderer/src/music/practiceSongs.ts` - Practice Song JSON validation, Practice Step grammar parsing, optional scale parsing, normalized song path handling, disabled invalid-song option construction, and exact MIDI set matching.
+- `src/renderer/src/music/practiceSongs.test.ts` - Practice Step parsing, Practice Song validation, normalized song paths, invalid selector option, and exact-match tests.
 - `src/renderer/src/music/scales.ts` - Major/minor scale pitch-class helpers.
 - `src/renderer/src/music/scales.test.ts` - Scale pitch-class tests.
 - `src/renderer/src/music/songFixtures.test.ts` - Regression test that every root `songs/*.json` file parses as a valid Practice Song.
@@ -105,8 +111,10 @@ Living file map for PoleskiPiano. Update before committing whenever files are ad
 - `src/renderer/src/services/midi.ts` - Renderer Web MIDI connection, input status, and note on/off parsing.
 - `src/renderer/src/services/midi.test.ts` - MIDI parsing timestamp tests for stable staff grouping.
 - `src/renderer/src/services/pianoAudio.ts` - Tone.js sampled piano engine using `@tonejs/piano`, plus synth fallback.
+- `src/renderer/src/services/practiceSongFiles.ts` - Renderer Practice Song file client that uses Electron preload IPC when available and falls back to the dev-server HTTP bridge in browser dev mode.
+- `src/renderer/src/services/practiceSongFiles.test.ts` - Practice Song file client tests for Electron bridge preference and browser-dev HTTP fallback.
 
 ## src/renderer/src/types
 
-- `src/renderer/src/types/electron-api.d.ts` - Type declarations for the preload-exposed `window.poleskiPiano` bridge and native theme-toggle callback.
+- `src/renderer/src/types/electron-api.d.ts` - Type declarations for the preload-exposed `window.poleskiPiano` bridge, native theme-toggle callback, and Practice Song list/save methods.
 - `src/renderer/src/types/web-midi.d.ts` - Minimal Web MIDI type declarations for Chromium/Electron renderer code.

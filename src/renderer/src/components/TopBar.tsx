@@ -17,6 +17,17 @@ import type { PracticeSongOption } from "../music/practiceSongs";
 
 export type ThemeMode = "dark" | "light";
 export const NONE_PRACTICE_SONG_ID = "none";
+export const PENDING_PRACTICE_SONG_ID = "pending-practice-song";
+export const PRACTICE_SONG_CONTROL_ICONS = {
+  previousStep: "←",
+  play: "▶",
+  pause: "⏸",
+  nextStep: "→",
+  restart: "↺",
+  edit: "✎",
+  save: "✓",
+  cancel: "×",
+} as const;
 
 interface TopBarProps {
   midiStatus: MidiStatus;
@@ -26,10 +37,21 @@ interface TopBarProps {
   practiceSongOptions: PracticeSongOption[];
   selectedPracticeSongId: string;
   hasSelectedPracticeSong: boolean;
+  hasPendingPracticeSong: boolean;
+  pendingPracticeSongTitle: string;
   isPracticePlaying: boolean;
+  isPracticeSongBuilderActive: boolean;
+  practiceSongBuilderTitle: string | null;
   onScaleChange: (scale: SelectedScale | null) => void;
   onChordPreviewChange: (preview: ChordPreview | null) => void;
   onPracticeSongChange: (practiceSongId: string) => void;
+  onPendingPracticeSongTitleChange: (title: string) => void;
+  onPendingPracticeSongSubmit: () => void;
+  onPendingPracticeSongCancel: () => void;
+  onPracticeSongBuilderTitleChange: (title: string) => void;
+  onPracticeSongBuilderStart: () => void;
+  onPracticeSongBuilderSave: () => void;
+  onPracticeSongBuilderCancel: () => void;
   onPracticeBack: () => void;
   onPracticeNext: () => void;
   onPracticeRestart: () => void;
@@ -44,10 +66,21 @@ export function TopBar({
   practiceSongOptions,
   selectedPracticeSongId,
   hasSelectedPracticeSong,
+  hasPendingPracticeSong,
+  pendingPracticeSongTitle,
   isPracticePlaying,
+  isPracticeSongBuilderActive,
+  practiceSongBuilderTitle,
   onScaleChange,
   onChordPreviewChange,
   onPracticeSongChange,
+  onPendingPracticeSongTitleChange,
+  onPendingPracticeSongSubmit,
+  onPendingPracticeSongCancel,
+  onPracticeSongBuilderTitleChange,
+  onPracticeSongBuilderStart,
+  onPracticeSongBuilderSave,
+  onPracticeSongBuilderCancel,
   onPracticeBack,
   onPracticeNext,
   onPracticeRestart,
@@ -58,6 +91,10 @@ export function TopBar({
     (midiStatus.supported ? "No MIDI device" : "MIDI unavailable");
   const chordPreviewOptions = getChordPreviewOptions(selectedScale);
   const hasSelectedScale = selectedScale !== null;
+  const hasActionRow =
+    isPracticeSongBuilderActive ||
+    hasSelectedPracticeSong ||
+    hasPendingPracticeSong;
 
   return (
     <header className="top-bar">
@@ -68,41 +105,73 @@ export function TopBar({
         </div>
       </div>
 
-      <div className="top-controls">
-        <div className="select-control scale-control">
-          <span>Scale</span>
-          <ScaleSelect
-            selectedScale={selectedScale}
-            onScaleChange={onScaleChange}
-          />
-        </div>
-        <div className="select-control practice-song-control">
-          <span>Song</span>
-          <PracticeSongSelect
-            options={practiceSongOptions}
-            selectedPracticeSongId={selectedPracticeSongId}
-            onPracticeSongChange={onPracticeSongChange}
-          />
-        </div>
-        {hasSelectedPracticeSong ? (
-          <PracticeSongControls
-            isPracticePlaying={isPracticePlaying}
-            onBack={onPracticeBack}
-            onNext={onPracticeNext}
-            onRestart={onPracticeRestart}
-            onPlayingChange={onPracticePlayingChange}
-          />
-        ) : (
+      <div className="top-bar-content">
+        <div className="top-select-row">
+          <div className="select-control scale-control">
+            <span>Scale</span>
+            <ScaleSelect
+              selectedScale={selectedScale}
+              onScaleChange={onScaleChange}
+            />
+          </div>
           <div className="select-control chord-preview-control">
             <span>Chord Preview</span>
             <ChordPreviewSelect
+              disabled={isPracticeSongBuilderActive}
               hasSelectedScale={hasSelectedScale}
               options={chordPreviewOptions}
               selectedChordPreview={selectedChordPreview}
               onChordPreviewChange={onChordPreviewChange}
             />
           </div>
-        )}
+          <div className="select-control practice-song-control">
+            <span>Song</span>
+            <PracticeSongSelect
+              options={practiceSongOptions}
+              selectedPracticeSongId={selectedPracticeSongId}
+              pendingPracticeSongTitle={pendingPracticeSongTitle}
+              isPracticeSongBuilderActive={isPracticeSongBuilderActive}
+              practiceSongBuilderTitle={practiceSongBuilderTitle}
+              onPracticeSongChange={onPracticeSongChange}
+            />
+          </div>
+        </div>
+        {hasActionRow ? (
+          <div className="top-action-row">
+            {isPracticeSongBuilderActive ? (
+              <div className="practice-song-builder-row">
+                <PracticeSongTitleField
+                  label="Title"
+                  placeholder="Song title"
+                  value={practiceSongBuilderTitle ?? ""}
+                  onChange={onPracticeSongBuilderTitleChange}
+                />
+                <PracticeSongBuilderControls
+                  onBack={onPracticeBack}
+                  onNext={onPracticeNext}
+                  onSave={onPracticeSongBuilderSave}
+                  onCancel={onPracticeSongBuilderCancel}
+                />
+              </div>
+            ) : hasSelectedPracticeSong ? (
+              <PracticeSongControls
+                isPracticePlaying={isPracticePlaying}
+                onBack={onPracticeBack}
+                onNext={onPracticeNext}
+                onRestart={onPracticeRestart}
+                onBuilderStart={onPracticeSongBuilderStart}
+                onPlayingChange={onPracticePlayingChange}
+              />
+            ) : hasPendingPracticeSong ? (
+              <NewPracticeSongComposer
+                title={pendingPracticeSongTitle}
+                onTitleChange={onPendingPracticeSongTitleChange}
+                onSubmit={onPendingPracticeSongSubmit}
+                onCancel={onPendingPracticeSongCancel}
+              />
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </header>
   );
@@ -111,18 +180,31 @@ export function TopBar({
 interface PracticeSongSelectProps {
   options: PracticeSongOption[];
   selectedPracticeSongId: string;
+  pendingPracticeSongTitle: string;
+  isPracticeSongBuilderActive: boolean;
+  practiceSongBuilderTitle: string | null;
   onPracticeSongChange: (practiceSongId: string) => void;
 }
 
 function PracticeSongSelect({
   options,
   selectedPracticeSongId,
+  pendingPracticeSongTitle,
+  isPracticeSongBuilderActive,
+  practiceSongBuilderTitle,
   onPracticeSongChange,
 }: PracticeSongSelectProps): React.ReactElement {
   const [isOpen, setIsOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const selectedOption = options.find(
     (option) => option.id === selectedPracticeSongId,
+  );
+  const selectedName = getPracticeSongSelectedName(
+    selectedPracticeSongId,
+    selectedOption,
+    pendingPracticeSongTitle,
+    isPracticeSongBuilderActive,
+    practiceSongBuilderTitle,
   );
 
   useCloseOnOutsidePointer(isOpen, rootRef, setIsOpen);
@@ -132,7 +214,9 @@ function PracticeSongSelect({
       <button
         aria-expanded={isOpen}
         aria-haspopup="listbox"
+        aria-disabled={isPracticeSongBuilderActive}
         className="top-select-trigger"
+        disabled={isPracticeSongBuilderActive}
         type="button"
         onKeyDown={(event) => {
           if (event.key === "Escape") {
@@ -141,9 +225,7 @@ function PracticeSongSelect({
         }}
         onClick={() => setIsOpen((current) => !current)}
       >
-        <span className="top-select-selected-name">
-          {selectedOption?.title ?? "None"}
-        </span>
+        <span className="top-select-selected-name">{selectedName}</span>
         <span className="top-select-arrow" aria-hidden="true">
           ▾
         </span>
@@ -155,6 +237,7 @@ function PracticeSongSelect({
           role="listbox"
         >
           <button
+            aria-disabled={isPracticeSongBuilderActive}
             aria-selected={selectedPracticeSongId === NONE_PRACTICE_SONG_ID}
             className="top-select-option"
             role="option"
@@ -163,43 +246,58 @@ function PracticeSongSelect({
               onPracticeSongChange(NONE_PRACTICE_SONG_ID);
               setIsOpen(false);
             }}
+            disabled={isPracticeSongBuilderActive}
           >
             <span className="top-select-option-name">None</span>
           </button>
-          {options.map((option) => {
-            const isInvalid = option.status === "invalid";
+          <button
+            aria-selected={selectedPracticeSongId === PENDING_PRACTICE_SONG_ID}
+            className="top-select-option new-song-option"
+            role="option"
+            type="button"
+            onClick={() => {
+              onPracticeSongChange(PENDING_PRACTICE_SONG_ID);
+              setIsOpen(false);
+            }}
+          >
+            <span className="top-select-option-name">New Song</span>
+          </button>
+          {!isPracticeSongBuilderActive
+            ? options.map((option) => {
+                const isInvalid = option.status === "invalid";
 
-            return (
-              <button
-                aria-disabled={isInvalid}
-                aria-selected={selectedPracticeSongId === option.id}
-                className={[
-                  "top-select-option",
-                  "practice-song-option",
-                  getPracticeSongOptionClassName(option),
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-                key={option.id}
-                role="option"
-                title={isInvalid ? option.error : undefined}
-                type="button"
-                onClick={() => {
-                  if (isInvalid) {
-                    return;
-                  }
+                return (
+                  <button
+                    aria-disabled={isInvalid}
+                    aria-selected={selectedPracticeSongId === option.id}
+                    className={[
+                      "top-select-option",
+                      "practice-song-option",
+                      getPracticeSongOptionClassName(option),
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                    key={option.id}
+                    role="option"
+                    title={isInvalid ? option.error : undefined}
+                    type="button"
+                    onClick={() => {
+                      if (isInvalid) {
+                        return;
+                      }
 
-                  onPracticeSongChange(option.id);
-                  setIsOpen(false);
-                }}
-              >
-                {isInvalid ? (
-                  <span className="song-invalid-marker" aria-hidden="true" />
-                ) : null}
-                <span className="top-select-option-name">{option.title}</span>
-              </button>
-            );
-          })}
+                      onPracticeSongChange(option.id);
+                      setIsOpen(false);
+                    }}
+                  >
+                    {isInvalid ? (
+                      <span className="song-invalid-marker" aria-hidden="true" />
+                    ) : null}
+                    <span className="top-select-option-name">{option.title}</span>
+                  </button>
+                );
+              })
+            : null}
         </div>
       ) : null}
     </div>
@@ -211,6 +309,7 @@ interface PracticeSongControlsProps {
   onBack: () => void;
   onNext: () => void;
   onRestart: () => void;
+  onBuilderStart: () => void;
   onPlayingChange: (isPlaying: boolean) => void;
 }
 
@@ -219,6 +318,7 @@ function PracticeSongControls({
   onBack,
   onNext,
   onRestart,
+  onBuilderStart,
   onPlayingChange,
 }: PracticeSongControlsProps): React.ReactElement {
   return (
@@ -230,7 +330,7 @@ function PracticeSongControls({
         title="Previous step"
         onClick={onBack}
       >
-        <span aria-hidden="true">⏮</span>
+        <span aria-hidden="true">{PRACTICE_SONG_CONTROL_ICONS.previousStep}</span>
       </button>
       <button
         className="practice-control-button practice-play-button"
@@ -239,7 +339,11 @@ function PracticeSongControls({
         title={isPracticePlaying ? "Pause" : "Play"}
         onClick={() => onPlayingChange(!isPracticePlaying)}
       >
-        <span aria-hidden="true">{isPracticePlaying ? "⏸" : "▶"}</span>
+        <span aria-hidden="true">
+          {isPracticePlaying
+            ? PRACTICE_SONG_CONTROL_ICONS.pause
+            : PRACTICE_SONG_CONTROL_ICONS.play}
+        </span>
       </button>
       <button
         className="practice-control-button"
@@ -248,7 +352,7 @@ function PracticeSongControls({
         title="Next step"
         onClick={onNext}
       >
-        <span aria-hidden="true">⏭</span>
+        <span aria-hidden="true">{PRACTICE_SONG_CONTROL_ICONS.nextStep}</span>
       </button>
       <button
         className="practice-control-button"
@@ -257,9 +361,178 @@ function PracticeSongControls({
         title="Restart"
         onClick={onRestart}
       >
-        <span aria-hidden="true">↺</span>
+        <span aria-hidden="true">{PRACTICE_SONG_CONTROL_ICONS.restart}</span>
+      </button>
+      <PracticeSongBuilderStartButton
+        label="Edit Practice Song"
+        title="Edit practice song"
+        onBuilderStart={onBuilderStart}
+      />
+    </div>
+  );
+}
+
+interface PracticeSongBuilderStartButtonProps {
+  label: string;
+  title: string;
+  onBuilderStart: () => void;
+}
+
+function PracticeSongBuilderStartButton({
+  label,
+  title,
+  onBuilderStart,
+}: PracticeSongBuilderStartButtonProps): React.ReactElement {
+  return (
+    <button
+      className="practice-control-button"
+      type="button"
+      aria-label={label}
+      title={title}
+      onClick={onBuilderStart}
+    >
+      <span aria-hidden="true">{PRACTICE_SONG_CONTROL_ICONS.edit}</span>
+    </button>
+  );
+}
+
+interface PracticeSongBuilderControlsProps {
+  onBack: () => void;
+  onNext: () => void;
+  onSave: () => void;
+  onCancel: () => void;
+}
+
+function PracticeSongBuilderControls({
+  onBack,
+  onNext,
+  onSave,
+  onCancel,
+}: PracticeSongBuilderControlsProps): React.ReactElement {
+  return (
+    <div className="practice-song-controls" aria-label="Practice song builder">
+      <button
+        className="practice-control-button"
+        type="button"
+        aria-label="Previous Draft Step"
+        title="Previous step"
+        onClick={onBack}
+      >
+        <span aria-hidden="true">{PRACTICE_SONG_CONTROL_ICONS.previousStep}</span>
+      </button>
+      <button
+        className="practice-control-button"
+        type="button"
+        aria-label="Next Draft Step"
+        title="Next step"
+        onClick={onNext}
+      >
+        <span aria-hidden="true">{PRACTICE_SONG_CONTROL_ICONS.nextStep}</span>
+      </button>
+      <button
+        className="practice-control-button practice-save-button"
+        type="button"
+        aria-label="Save Practice Song"
+        title="Save practice song"
+        onClick={onSave}
+      >
+        <span aria-hidden="true">{PRACTICE_SONG_CONTROL_ICONS.save}</span>
+      </button>
+      <button
+        className="practice-control-button"
+        type="button"
+        aria-label="Cancel Practice Song Builder"
+        title="Cancel"
+        onClick={onCancel}
+      >
+        <span aria-hidden="true">{PRACTICE_SONG_CONTROL_ICONS.cancel}</span>
       </button>
     </div>
+  );
+}
+
+interface NewPracticeSongComposerProps {
+  title: string;
+  onTitleChange: (title: string) => void;
+  onSubmit: () => void;
+  onCancel: () => void;
+}
+
+function NewPracticeSongComposer({
+  title,
+  onTitleChange,
+  onSubmit,
+  onCancel,
+}: NewPracticeSongComposerProps): React.ReactElement {
+  const canSubmit = title.trim().length > 0;
+
+  return (
+    <div className="new-song-composer" aria-label="New practice song">
+      <PracticeSongTitleField
+        label="New Song"
+        placeholder="Song title"
+        value={title}
+        onChange={onTitleChange}
+        onSubmit={canSubmit ? onSubmit : undefined}
+      />
+      <div className="practice-song-controls" aria-label="New song controls">
+        <button
+          className="practice-control-button"
+          type="button"
+          aria-label="Create Practice Song"
+          title="Create practice song"
+          disabled={!canSubmit}
+          onClick={onSubmit}
+        >
+          <span aria-hidden="true">{PRACTICE_SONG_CONTROL_ICONS.edit}</span>
+        </button>
+        <button
+          className="practice-control-button"
+          type="button"
+          aria-label="Cancel New Practice Song"
+          title="Cancel"
+          onClick={onCancel}
+        >
+          <span aria-hidden="true">{PRACTICE_SONG_CONTROL_ICONS.cancel}</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+interface PracticeSongTitleFieldProps {
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (value: string) => void;
+  onSubmit?: () => void;
+}
+
+function PracticeSongTitleField({
+  label,
+  placeholder,
+  value,
+  onChange,
+  onSubmit,
+}: PracticeSongTitleFieldProps): React.ReactElement {
+  return (
+    <label className="practice-song-title-field">
+      <span>{label}</span>
+      <input
+        type="text"
+        value={value}
+        placeholder={placeholder}
+        onKeyDown={(event) => {
+          event.stopPropagation();
+
+          if (event.key === "Enter" && onSubmit) {
+            event.preventDefault();
+            onSubmit();
+          }
+        }}
+        onChange={(event) => onChange(event.currentTarget.value)}
+      />
+    </label>
   );
 }
 
@@ -353,6 +626,7 @@ function ScaleSelect({
 }
 
 interface ChordPreviewSelectProps {
+  disabled?: boolean;
   hasSelectedScale: boolean;
   options: ReturnType<typeof getChordPreviewOptions>;
   selectedChordPreview: ChordPreview | null;
@@ -360,6 +634,7 @@ interface ChordPreviewSelectProps {
 }
 
 function ChordPreviewSelect({
+  disabled = false,
   hasSelectedScale,
   options,
   selectedChordPreview,
@@ -384,7 +659,9 @@ function ChordPreviewSelect({
       <button
         aria-expanded={isOpen}
         aria-haspopup="listbox"
+        aria-disabled={disabled}
         className="top-select-trigger"
+        disabled={disabled}
         type="button"
         onKeyDown={(event) => {
           if (event.key === "Escape") {
@@ -486,6 +763,24 @@ function useCloseOnOutsidePointer(
 
 function getScaleOptionLabel(tonic: PitchClass, mode: ScaleMode): string {
   return `${tonic} ${SCALE_MODE_LABELS[mode].toLowerCase()}`;
+}
+
+function getPracticeSongSelectedName(
+  selectedPracticeSongId: string,
+  selectedOption: PracticeSongOption | undefined,
+  pendingPracticeSongTitle: string,
+  isPracticeSongBuilderActive: boolean,
+  practiceSongBuilderTitle: string | null,
+): string {
+  if (isPracticeSongBuilderActive) {
+    return practiceSongBuilderTitle?.trim() || "Untitled song";
+  }
+
+  if (selectedPracticeSongId === PENDING_PRACTICE_SONG_ID) {
+    return pendingPracticeSongTitle.trim() || "New Song";
+  }
+
+  return selectedOption?.title ?? "None";
 }
 
 export function getChordPreviewOptionClassName(

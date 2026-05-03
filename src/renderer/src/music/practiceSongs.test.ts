@@ -5,6 +5,7 @@ import {
   parseOptionalPracticeScale,
   parsePracticeSong,
   parsePracticeStep,
+  normalizePracticeSongPath,
 } from "./practiceSongs";
 
 describe("Practice Step parsing", () => {
@@ -43,6 +44,12 @@ describe("Practice Step parsing", () => {
 });
 
 describe("Practice Song parsing", () => {
+  it("normalizes Vite raw-import paths into root song paths", () => {
+    expect(normalizePracticeSongPath("../../../../songs/my-song.json")).toBe(
+      "songs/my-song.json",
+    );
+  });
+
   it("parses optional scale metadata as an initial scale hint", () => {
     expect(parseOptionalPracticeScale("D major")).toEqual({
       tonic: "D",

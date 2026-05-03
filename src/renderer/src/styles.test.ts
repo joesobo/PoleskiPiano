@@ -61,4 +61,19 @@ describe("practice song styles", () => {
     expect(styles).toMatch(/\.practice-preview-count\s*\{/);
     expect(styles).toMatch(/\.signal-status\s*\{/);
   });
+
+  it("keeps the song title input usable and puts action controls in a temporary second row", () => {
+    expect(styles).toMatch(/\.app-shell\s*\{[^}]*grid-template-rows:\s*auto minmax\(0,\s*1fr\) 212px/s);
+    expect(styles).toMatch(/\.top-bar-content\s*\{[^}]*grid-template-rows:\s*auto auto/s);
+    expect(styles).toMatch(/\.top-select-row\s*\{/);
+    expect(styles).toMatch(/\.practice-song-select\s*\{[^}]*inline-size:\s*220px/s);
+    expect(styles).toMatch(/\.practice-song-menu\s*\{[^}]*inline-size:\s*260px/s);
+    expect(styles).toMatch(/\.practice-song-control\s*\{[^}]*margin-inline-start:\s*auto/s);
+    expect(styles).toMatch(/\.top-action-row\s*\{/);
+    expect(styles).toMatch(/\.new-song-composer,\s*\n\.practice-song-builder-row\s*\{/);
+    expect(styles).toMatch(/\.practice-song-title-field\s*\{/);
+    expect(styles).toMatch(
+      /\.top-bar button,\s*\n\.top-bar select,\s*\n\.top-bar input\s*\{[^}]*-webkit-app-region:\s*no-drag/s,
+    );
+  });
 });

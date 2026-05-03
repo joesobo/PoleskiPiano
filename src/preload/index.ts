@@ -16,4 +16,19 @@ contextBridge.exposeInMainWorld("poleskiPiano", {
   setThemeMode: (themeMode: "dark" | "light") => {
     ipcRenderer.send("theme:mode-changed", themeMode);
   },
+  listPracticeSongs: () =>
+    ipcRenderer.invoke("practice-songs:list") as Promise<Record<string, string>>,
+  savePracticeSong: (request: {
+    path: string;
+    overwrite: boolean;
+    song: {
+      title: string;
+      scale?: string;
+      steps: string[];
+    };
+  }) =>
+    ipcRenderer.invoke("practice-songs:save", request) as Promise<{
+      path: string;
+      files: Record<string, string>;
+    }>,
 });

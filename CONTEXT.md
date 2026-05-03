@@ -62,8 +62,11 @@ PoleskiPiano is a lightweight native desktop piano-learning app for a small 37-k
 - MIDI connection status and audio activity should sit together as a compact signal cluster on the far left of the top bar.
 - Theme switching is a native app command under the View menu, not a visible control in the practice surface. The command uses Appearance wording.
 - Practice Preview reuses the same ghost-note visual language as Chord Preview, but it is sourced from the current Practice Step.
-- When a Practice Song is selected, Practice Preview owns the ghost target surface and Chord Preview is unavailable.
-- The top bar hides Chord Preview while a valid Practice Song is selected.
+- When a Practice Song is selected, Practice Preview owns the ghost target surface and the Chord Preview value is reset to None.
+- The top bar keeps Scale, Chord Preview, and Song selectors visible together in the top row. Song sits at the far right.
+- Song and Chord Preview are mutually exclusive selections: choosing a Practice Song clears Chord Preview, and choosing a non-None Chord Preview clears the selected Practice Song.
+- Practice controls and Practice Song Builder controls appear in a temporary second top-bar row only when needed.
+- Creating a new Practice Song starts from a plain `New Song` choice in the Song selector, then shows the title entry and create/cancel controls in the temporary second top-bar row. The Song selector menu is selection-only, not a text-entry surface.
 - Practice Preview shows the selected Practice Song title and current step count as lightweight context, such as `Song Name 2/12`.
 - Practice Preview shows the Practice Song title as normal text with the current step count beside it.
 - Practice Preview shows only the current Practice Step's note or notes below the title as ghosted targets, matching the Chord Preview visual treatment.
@@ -87,16 +90,60 @@ PoleskiPiano is a lightweight native desktop piano-learning app for a small 37-k
 - When a Practice Song is selected but paused, MIDI and on-screen input behave normally for audio, highlighting, chord display, and staff display. Auto-advance is off until playback is started.
 - Selecting a Practice Song resets to the first Practice Step and starts paused.
 - Switching between Practice Songs resets to the new song's first Practice Step and starts paused.
-- Switching the Practice Song selector back to None clears Practice Preview and makes Chord Preview available again.
+- Switching the Practice Song selector back to None clears Practice Preview while leaving the Chord Preview selector visible.
 - Selecting a Practice Song with `scale` sets the Scale selector to that scale so the passive scale tint matches the song.
 - A Practice Song's `scale` is an initial hint, not a lock. The learner can manually change Scale while practicing, and selecting another Practice Song applies that song's scale hint again.
 - A Practice Song with an invalid optional `scale` is invalid. It remains visible as a disabled selector option with a red marker and tooltip error.
 - When playback reaches the final Practice Step and the learner matches it, the Practice Song loops back to the first Practice Step and stays playing.
 - Restart returns to the first Practice Step without changing playback state: playing stays playing, paused stays paused.
 - Invalid Practice Song files remain visible in the Practice Song selector as disabled options. Disabled song options are visually dimmed, show a small red marker, and expose the parse or validation error in a hover tooltip.
-- The top bar always shows the Practice Song selector. When a valid Practice Song is selected, it also shows compact back, play/pause, next, and restart controls plus the current step count.
+- The top bar always shows the Practice Song selector. When a valid Practice Song is selected, compact back, play/pause, next, restart, and edit controls appear in the temporary second row.
+- Practice Song back and next controls use adjacent-step icons, not jump-to-start or jump-to-end icons.
+- ArrowLeft and ArrowRight navigate previous and next Practice Steps when a valid Practice Song is selected.
 - Practice Song controls are hidden when Practice Song is None or when a song file is invalid and disabled.
 - Practice Song examples should include simple technique drills plus playable song imports or sketches.
+- A Practice Song Builder is a step-by-step authoring mode for creating or editing Practice Song JSON by hand from notation-reading practice.
+- A Practice Song Draft is an in-progress Practice Song being authored in the Practice Song Builder.
+- Practice Song Builder captures note sets only. It does not record audio, timing, rhythm, measures, durations, or a performance history.
+- Practice Song Builder is entered from a compact edit-style icon near the Practice Song controls.
+- While Practice Song Builder is inactive, the control uses edit/create wording. While it is active, the control uses save wording.
+- Practice Song Builder should not use record wording or a record-dot icon because it is not audio or timed performance capture.
+- A new Practice Song Draft can be started from the `New Song` option in the Practice Song selector.
+- Typing a new song title creates a pending new-song selection but does not create a draft file by itself.
+- Pressing Enter in the new song title field or pressing the edit/create control starts Practice Song Builder for the pending new-song title.
+- A pending new-song selection shows the create/edit control but does not show practice playback, step navigation, or restart controls.
+- Selecting an existing Practice Song and entering Practice Song Builder loads that song as an editable draft.
+- Editing an existing Practice Song starts Practice Song Builder on the currently selected Practice Step.
+- Creating a new Practice Song starts Practice Song Builder on the first draft step.
+- Entering Practice Song Builder pauses Practice Song playback.
+- While Practice Song Builder is active, the back and next controls navigate draft steps for editing instead of practice playback.
+- ArrowLeft and ArrowRight navigate previous and next draft steps while Practice Song Builder is active.
+- In Practice Song Builder, next moves to the next existing draft step, or appends and selects a new empty draft step when already on the last step.
+- In Practice Song Builder, back never moves before the first draft step.
+- Practice Song Builder v0 has no dedicated delete-step control. Clearing all notes makes a draft step empty, and save validation handles empty steps.
+- Practice Step keyboard shortcuts do not run while focus is inside text inputs, textareas, or dropdown/listbox controls.
+- While Practice Song Builder is active, practice play/pause is hidden because played notes edit the draft step instead of completing Practice Steps.
+- While Practice Song Builder is active, a compact cancel control exits builder mode and discards unsaved draft changes.
+- Canceling Practice Song Builder exits immediately when the draft is unchanged, but asks for confirmation before discarding unsaved draft changes.
+- While Practice Song Builder is active, the current draft step is shown through the same ghosted Practice Preview surfaces used by normal Practice Song mode.
+- Live input remains visually dominant over the draft-step preview while authoring.
+- MIDI input, piano-row input, scale-circle input, and grand-staff input can all edit the current draft step.
+- Playing or clicking a note that is already in the current draft step toggles that note back off.
+- Practice Song Builder saves each draft step as a low-to-high pitch set. Entry order does not change the saved step order.
+- Practice Song Builder allows the current draft step to be empty while editing.
+- Saving a Practice Song Draft removes trailing empty steps, blocks empty steps in the middle, and blocks saving when every step is empty.
+- Saving a Practice Song Draft requires a non-empty trimmed title.
+- Saving a new Practice Song Draft is blocked if the generated title slug is empty.
+- Practice Song Builder saves the current Scale selector value as the Practice Song's optional `scale` hint. If Scale is None, no `scale` field is saved.
+- Editing an existing Practice Song replaces that song's saved `scale` hint with the current Scale selector value on save.
+- New Practice Song Drafts save to `songs/<title-slug>.json`, where the slug is generated from the entered title.
+- Saving a new Practice Song Draft is blocked if the generated song filename already exists.
+- Editing an existing Practice Song can change the saved JSON `title`, but keeps the existing song filename.
+- Exiting Practice Song Builder after edits saves the Practice Song Draft to a local JSON file in the root `songs/` folder.
+- Practice Song Builder saves song files through an Electron main-process bridge. The renderer does not write to the filesystem directly.
+- After saving a Practice Song Draft, the in-app Practice Song list refreshes from disk so new and edited songs are available without restarting the app.
+- Saving a Practice Song Draft exits Practice Song Builder, selects the saved song, and returns to normal paused Practice Song mode.
+- Practice Song Builder save errors are shown in the middle-center panel near the builder title and step count. Save validation should stay non-modal except for discard confirmation.
 - Colors are stable absolute pitch-class colors. A note keeps the same color across piano keys and selected scales.
 - Selected scale affects highlighting, not the pitch-class color mapping.
 - Selected scale is background structure only. It lightly distinguishes notes that belong to the scale from notes outside it.
@@ -133,9 +180,17 @@ _Avoid_: song lesson, exercise
 One expected note, chord, or note set inside a Practice Song.
 _Avoid_: line, measure, bar
 
+**Practice Song Builder**:
+A step-by-step authoring mode for creating or editing Practice Song JSON from learner-entered note targets.
+_Avoid_: recording, audio recording, performance capture
+
+**Practice Song Draft**:
+An in-progress Practice Song being authored before it is saved as a local song file.
+_Avoid_: recording, take, performance
+
 ## v0 layout
 
-- Top bar: compact MIDI connection status and audio level cluster, combined scale selector, Practice Song selector and controls, and conditional chord preview selector.
+- Top bar: compact MIDI connection status and audio level cluster on the left; Scale, Chord Preview, and Song selectors in the top row; temporary practice/builder action controls in a second row when needed.
 - Middle left: selected scale/circle-style pitch map.
 - Middle center: live notes/chord being played.
 - Middle right: traditional grand staff with treble and bass clefs.

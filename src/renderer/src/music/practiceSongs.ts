@@ -52,8 +52,16 @@ export function createPracticeSongOptions(
   files: Record<string, string>,
 ): PracticeSongOption[] {
   return Object.entries(files)
-    .map(([path, rawFile]) => createPracticeSongOption(path, rawFile))
+    .map(([path, rawFile]) =>
+      createPracticeSongOption(normalizePracticeSongPath(path), rawFile),
+    )
     .sort((left, right) => left.title.localeCompare(right.title));
+}
+
+export function normalizePracticeSongPath(path: string): string {
+  const filename = path.split(/[\\/]/).at(-1) ?? path;
+
+  return `songs/${filename}`;
 }
 
 export function parsePracticeSong(

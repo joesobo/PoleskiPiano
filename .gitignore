@@ -6,3 +6,4 @@ dist/
 .codegraphy/
 .playwright-cli/
 .worktree/
+.electron-dev/
