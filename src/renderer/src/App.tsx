@@ -1,8 +1,20 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+} from "react";
 import {
   ChordDisplay,
   type ChordDisplayPreview,
 } from "./components/ChordDisplay";
+import {
+  FallingNotesPanel,
+  type FallingNoteFeedbackEvent,
+} from "./components/FallingNotesPanel";
 import { PianoKeyboard } from "./components/PianoKeyboard";
 import { ScaleWheel } from "./components/ScaleWheel";
 import { StaffNotation } from "./components/StaffNotation";
@@ -38,7 +50,7 @@ import {
   createNewPracticeSongDraft,
   createPracticeSongDraftFromSong,
   getPracticeSongDraftCurrentNotes,
-  movePracticeSongDraftStep,
+  movePracticeSongDraftTarget,
   preparePracticeSongDraftForSave,
   setPracticeSongDraftError,
   setPracticeSongDraftTitle,
@@ -46,9 +58,9 @@ import {
   type PracticeSongDraft,
 } from "./music/practiceSongBuilder";
 import {
-  activeMidiNotesMatchPracticeStep,
   createPracticeSongOptions,
-  type PracticeStep,
+  type PracticeTarget,
+  type PracticeTargetNote,
   type PracticeSong,
 } from "./music/practiceSongs";
 import {
@@ -56,6 +68,35 @@ import {
   type SelectedScale,
 } from "./music/scales";
 import { groupTimedMidiNotesForStaff } from "./music/staff";
+import {
+  clampPracticeSpeedPercent,
+  activeMidiNotesMatchGuidedTargetAtHitLine,
+  activeMidiNotesMatchGuidedTargetInput,
+  getGuidedCompletionResult,
+  getInitialFallingPlayheadBeat,
+  getGuidedInputTargetIndex,
+  getPerformanceScore,
+  getSongEndBeat,
+  getSongLeadInBeats,
+  getTargetIndexForPlayhead,
+  markMissedPerformanceTargets,
+  PRACTICE_SPEED_DEFAULT_PERCENT,
+  PRACTICE_SPEED_STEP_PERCENT,
+  scorePerformanceInput,
+  type PracticeRunMode,
+  type PracticeTargetResults,
+} from "./music/fallingNotes";
+import {
+  RANDOM_SCALE_CHORD_PRACTICE_ID,
+  createRandomScaleChordPracticeSeed,
+  createRandomScaleChordPracticeSongOption,
+  getNextRandomScaleChordPracticeSeed,
+} from "./music/randomScaleChordPractice";
+import {
+  createInitialPanelManagerState,
+  setPanelVisibility,
+  togglePanel,
+} from "./panelManager";
 import {
   connectWebMidi,
   type MidiNoteEvent,
@@ -66,9 +107,15 @@ import {
   listPracticeSongFiles,
   savePracticeSongFile,
 } from "./services/practiceSongFiles";
+import {
+  PANEL_DEFINITIONS,
+  type PanelDefinition,
+  type PanelId,
+} from "../../shared/panels";
 
 const keyboardKeys = buildKeyboardRange();
 const SCREEN_INPUT_VELOCITY = 0.5;
+const PLAYBACK_END_PADDING_BEATS = 0.25;
 const initialMidiStatus: MidiStatus = {
   supported: true,
   permission: "unknown",
@@ -76,8 +123,11 @@ const initialMidiStatus: MidiStatus = {
 };
 const initialPracticeState = {
   song: null as PracticeSong | null,
-  stepIndex: 0,
+  targetIndex: 0,
   isPlaying: false,
+  runMode: "guided" as PracticeRunMode,
+  playheadBeat: 0,
+  waitingTargetIndex: null as number | null,
 };
 
 export function App(): React.ReactElement {
@@ -85,6 +135,13 @@ export function App(): React.ReactElement {
   const activeInputStateRef = useRef(createActiveInputState());
   const practiceStateRef = useRef(initialPracticeState);
   const practiceSongBuilderDraftRef = useRef<PracticeSongDraft | null>(null);
+  const panelContextMenuRef = useRef<HTMLDivElement | null>(null);
+  const playbackFrameRef = useRef<number | null>(null);
+  const fallingPlayheadBeatRef = useRef(0);
+  const guidedCompletedTargetIdsRef = useRef<ReadonlySet<string>>(new Set());
+  const performanceTargetResultsRef = useRef<PracticeTargetResults>({});
+  const fallingFeedbackSequenceRef = useRef(0);
+  const fallingFeedbackTimeoutsRef = useRef<number[]>([]);
   const [midiStatus, setMidiStatus] = useState<MidiStatus>(initialMidiStatus);
   const [activeInputState, setActiveInputState] = useState(
     createActiveInputState,
@@ -96,37 +153,92 @@ export function App(): React.ReactElement {
   const [practiceSongOptions, setPracticeSongOptions] = useState(
     PRACTICE_SONG_OPTIONS,
   );
+  const [randomChordPracticeSeed, setRandomChordPracticeSeed] = useState(
+    createRandomScaleChordPracticeSeed,
+  );
   const [selectedPracticeSongId, setSelectedPracticeSongId] = useState(
     NONE_PRACTICE_SONG_ID,
   );
   const [pendingPracticeSongTitle, setPendingPracticeSongTitle] = useState("");
   const [practiceSongBuilderDraft, setPracticeSongBuilderDraft] =
     useState<PracticeSongDraft | null>(null);
-  const [practiceStepIndex, setPracticeStepIndex] = useState(0);
+  const [practiceTargetIndex, setPracticeTargetIndex] = useState(0);
   const [isPracticePlaying, setIsPracticePlaying] = useState(false);
+  const [practiceRunMode, setPracticeRunMode] =
+    useState<PracticeRunMode>("guided");
+  const [practiceSpeedPercent, setPracticeSpeedPercent] = useState(
+    PRACTICE_SPEED_DEFAULT_PERCENT,
+  );
+  const [fallingPlayheadBeat, setFallingPlayheadBeat] = useState(0);
+  const [guidedWaitingTargetIndex, setGuidedWaitingTargetIndex] =
+    useState<number | null>(null);
+  const [guidedCompletedTargetIds, setGuidedCompletedTargetIds] = useState<
+    ReadonlySet<string>
+  >(new Set());
+  const [performanceTargetResults, setPerformanceTargetResults] =
+    useState<PracticeTargetResults>({});
+  const [fallingFeedbackEvents, setFallingFeedbackEvents] = useState<
+    FallingNoteFeedbackEvent[]
+  >([]);
+  const [panelManagerState, setPanelManagerState] = useState(
+    createInitialPanelManagerState,
+  );
+  const [panelContextMenuPosition, setPanelContextMenuPosition] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
   const [themeMode, setThemeMode] = useState<ThemeMode>("dark");
   const [screenInputResetKey, setScreenInputResetKey] = useState(0);
   const activeNotes = activeInputState.notes;
+  const panelVisibility = panelManagerState.visibility;
+  const visiblePracticeSongOptions = useMemo(
+    () => [
+      createRandomScaleChordPracticeSongOption(
+        selectedScale,
+        randomChordPracticeSeed,
+      ),
+      ...practiceSongOptions,
+    ],
+    [practiceSongOptions, randomChordPracticeSeed, selectedScale],
+  );
   const selectedPracticeSong = useMemo(() => {
-    const option = practiceSongOptions.find(
+    const option = visiblePracticeSongOptions.find(
       (practiceSongOption) =>
         practiceSongOption.id === selectedPracticeSongId &&
         practiceSongOption.status === "valid",
     );
 
     return option?.status === "valid" ? option.song : null;
-  }, [practiceSongOptions, selectedPracticeSongId]);
+  }, [selectedPracticeSongId, visiblePracticeSongOptions]);
   const hasPendingPracticeSong =
     selectedPracticeSongId === PENDING_PRACTICE_SONG_ID;
-  const currentPracticeStep = selectedPracticeSong
-    ? selectedPracticeSong.steps[practiceStepIndex] ?? null
+  const currentPracticeTarget = selectedPracticeSong
+    ? selectedPracticeSong.targets[practiceTargetIndex] ?? null
     : null;
-  const practiceStepPosition = selectedPracticeSong
+  const practiceTargetPosition = selectedPracticeSong
     ? {
-        current: practiceStepIndex + 1,
-        total: selectedPracticeSong.steps.length,
+        current: practiceTargetIndex + 1,
+        total: selectedPracticeSong.targets.length,
       }
     : null;
+  const fallingLeadInBeats = useMemo(
+    () => getSongLeadInBeats(selectedPracticeSong),
+    [selectedPracticeSong],
+  );
+  const performanceScore = useMemo(
+    () =>
+      selectedPracticeSong
+        ? getPerformanceScore(
+            performanceTargetResults,
+            selectedPracticeSong.targets.length,
+          )
+        : null,
+    [performanceTargetResults, selectedPracticeSong],
+  );
+  const guidedWaitingTarget =
+    selectedPracticeSong && guidedWaitingTargetIndex !== null
+      ? selectedPracticeSong.targets[guidedWaitingTargetIndex] ?? null
+      : null;
 
   const activeMidiNotes = useMemo(
     () => new Set(activeNotes.keys()),
@@ -163,9 +275,11 @@ export function App(): React.ReactElement {
     () =>
       practiceSongBuilderDraft
         ? practiceSongBuilderNotes.map((note) => note.midi)
-        : currentPracticeStep?.midiNotes ?? selectedChordPreview?.midiNotes ?? [],
+        : currentPracticeTarget?.midiNotes ??
+          selectedChordPreview?.midiNotes ??
+          [],
     [
-      currentPracticeStep,
+      currentPracticeTarget,
       practiceSongBuilderDraft,
       practiceSongBuilderNotes,
       selectedChordPreview,
@@ -180,9 +294,9 @@ export function App(): React.ReactElement {
       if (practiceSongBuilderDraft) {
         return {
           kind: "practice" as const,
-          kicker: "Practice Song Builder",
+          kicker: "Notation Builder",
           name: practiceSongBuilderDraft.title.trim() || "Untitled song",
-          stepCount: `${practiceSongBuilderDraft.stepIndex + 1}/${practiceSongBuilderDraft.steps.length}`,
+          targetCount: `${practiceSongBuilderDraft.targetIndex + 1}/${practiceSongBuilderDraft.targets.length}`,
           notes: practiceSongBuilderNotes,
           message: practiceSongBuilderDraft.error,
         };
@@ -190,19 +304,26 @@ export function App(): React.ReactElement {
 
       return buildChordDisplayPreview(
         selectedPracticeSong,
-        currentPracticeStep,
-        practiceStepPosition,
+        currentPracticeTarget,
+        practiceTargetPosition,
         selectedChordPreview,
       );
     },
     [
-      currentPracticeStep,
-      practiceStepPosition,
+      currentPracticeTarget,
+      practiceTargetPosition,
       practiceSongBuilderDraft,
       practiceSongBuilderNotes,
       selectedChordPreview,
       selectedPracticeSong,
     ],
+  );
+  const fallingPreviewTarget = useMemo(
+    () =>
+      selectedPracticeSong || practiceSongBuilderDraft
+        ? null
+        : buildChordPreviewPracticeTarget(selectedChordPreview),
+    [practiceSongBuilderDraft, selectedChordPreview, selectedPracticeSong],
   );
 
   const applyInputTransition = useCallback(
@@ -226,14 +347,76 @@ export function App(): React.ReactElement {
     },
     [],
   );
-  const maybeAdvancePracticeStep = useCallback(
+  const triggerFallingNoteFeedback = useCallback(
+    (target: PracticeTarget): void => {
+      const feedbackEvents = target.notes.map((note) => {
+        const id = `${target.id}:${note.midi}:${fallingFeedbackSequenceRef.current}`;
+        fallingFeedbackSequenceRef.current += 1;
+
+        return {
+          id,
+          midi: note.midi,
+          label: note.label,
+          pitchClass: note.pitchClass,
+        };
+      });
+
+      if (feedbackEvents.length === 0) {
+        return;
+      }
+
+      setFallingFeedbackEvents((events) => [...events, ...feedbackEvents]);
+
+      const timeout = window.setTimeout(() => {
+        const feedbackEventIds = new Set(feedbackEvents.map((event) => event.id));
+
+        setFallingFeedbackEvents((events) =>
+          events.filter((event) => !feedbackEventIds.has(event.id)),
+        );
+      }, 720);
+
+      fallingFeedbackTimeoutsRef.current.push(timeout);
+    },
+    [],
+  );
+  const completeGuidedTarget = useCallback(
+    (
+      practiceSong: PracticeSong,
+      targetIndex: number,
+      target: PracticeTarget,
+    ): void => {
+      setGuidedCompletedTargetIds((completedTargetIds) => {
+        if (completedTargetIds.has(target.id)) {
+          return completedTargetIds;
+        }
+
+        const nextCompletedTargetIds = new Set(completedTargetIds);
+        nextCompletedTargetIds.add(target.id);
+        guidedCompletedTargetIdsRef.current = nextCompletedTargetIds;
+        return nextCompletedTargetIds;
+      });
+      setGuidedWaitingTargetIndex(null);
+      triggerFallingNoteFeedback(target);
+      const completionResult = getGuidedCompletionResult(
+        practiceSong,
+        targetIndex,
+      );
+
+      if (completionResult.kind === "finish") {
+        setPracticeTargetIndex(completionResult.nextTargetIndex);
+        return;
+      }
+
+      setPracticeTargetIndex(completionResult.nextTargetIndex);
+    },
+    [triggerFallingNoteFeedback],
+  );
+  const handlePracticeRunInput = useCallback(
     (transition: ActiveInputTransition): void => {
       const practiceState = practiceStateRef.current;
 
       if (
         practiceSongBuilderDraftRef.current ||
-        !practiceState.isPlaying ||
-        !practiceState.song ||
         transition.state.source !== "midi" ||
         (transition.noteOns.length === 0 && transition.noteOffs.length === 0)
       ) {
@@ -241,24 +424,67 @@ export function App(): React.ReactElement {
       }
 
       const practiceSong = practiceState.song;
-      const expectedStep = practiceSong.steps[practiceState.stepIndex];
+
+      if (!practiceSong || !practiceState.isPlaying) {
+        return;
+      }
+
+      if (practiceState.runMode === "performance") {
+        if (transition.noteOns.length === 0) {
+          return;
+        }
+
+        const nextResults = scorePerformanceInput(
+          practiceSong,
+          practiceState.playheadBeat,
+          transition.state.notes.keys(),
+          performanceTargetResultsRef.current,
+        );
+        const hitTargets = getNewlyHitPerformanceTargets(
+          practiceSong,
+          performanceTargetResultsRef.current,
+          nextResults,
+        );
+
+        for (const target of hitTargets) {
+          triggerFallingNoteFeedback(target);
+        }
+
+        performanceTargetResultsRef.current = nextResults;
+        setPerformanceTargetResults(nextResults);
+        return;
+      }
+
+      const waitingTargetIndex = getGuidedInputTargetIndex(
+        practiceSong,
+        practiceState.targetIndex,
+        practiceState.playheadBeat,
+        practiceState.waitingTargetIndex,
+        guidedCompletedTargetIdsRef.current,
+      );
+
+      if (waitingTargetIndex === null) {
+        return;
+      }
+
+      const expectedTarget = practiceSong.targets[waitingTargetIndex];
 
       if (
-        activeMidiNotesMatchPracticeStep(
-          transition.state.notes.keys(),
-          expectedStep,
+        expectedTarget &&
+        activeMidiNotesMatchGuidedTargetInput(
+          transition.state.notes,
+          transition.noteOns,
+          expectedTarget,
         )
       ) {
-        setPracticeStepIndex((currentStepIndex) => {
-          if (currentStepIndex !== practiceState.stepIndex) {
-            return currentStepIndex;
-          }
-
-          return (currentStepIndex + 1) % practiceSong.steps.length;
-        });
+        completeGuidedTarget(
+          practiceSong,
+          waitingTargetIndex,
+          expectedTarget,
+        );
       }
     },
-    [],
+    [completeGuidedTarget, triggerFallingNoteFeedback],
   );
   const togglePracticeSongBuilderNote = useCallback((midi: number): void => {
     setPracticeSongBuilderDraft((draft) =>
@@ -288,7 +514,7 @@ export function App(): React.ReactElement {
         ) {
           togglePracticeSongBuilderNote(midi);
         }
-        maybeAdvancePracticeStep(transition);
+        handlePracticeRunInput(transition);
 
         if (previousSource === "screen") {
           setScreenInputResetKey((resetKey) => resetKey + 1);
@@ -300,9 +526,9 @@ export function App(): React.ReactElement {
       const transition = applyMidiNoteOff(activeInputStateRef.current, midi);
 
       applyInputTransition(transition);
-      maybeAdvancePracticeStep(transition);
+      handlePracticeRunInput(transition);
     },
-    [applyInputTransition, maybeAdvancePracticeStep, togglePracticeSongBuilderNote],
+    [applyInputTransition, handlePracticeRunInput, togglePracticeSongBuilderNote],
   );
 
   const handleScreenNoteStart = useCallback(
@@ -338,11 +564,53 @@ export function App(): React.ReactElement {
   const handleScreenNoteStop = useCallback((): void => {
     applyInputTransition(applyScreenNoteStop(activeInputStateRef.current));
   }, [applyInputTransition]);
+  const resetPracticeRunState = useCallback((song: PracticeSong | null): void => {
+    const emptyCompletedTargetIds = new Set<string>();
+    const emptyTargetResults: PracticeTargetResults = {};
+
+    guidedCompletedTargetIdsRef.current = emptyCompletedTargetIds;
+    performanceTargetResultsRef.current = emptyTargetResults;
+    setFallingPlayheadBeat(getInitialFallingPlayheadBeat(song));
+    setGuidedWaitingTargetIndex(null);
+    setGuidedCompletedTargetIds(emptyCompletedTargetIds);
+    setPerformanceTargetResults(emptyTargetResults);
+    setFallingFeedbackEvents([]);
+  }, []);
+  const seekPracticeTarget = useCallback(
+    (targetIndex: number): void => {
+      setGuidedWaitingTargetIndex(null);
+      setPerformanceTargetResults({});
+
+      if (!selectedPracticeSong) {
+        setPracticeTargetIndex(0);
+        setFallingPlayheadBeat(getInitialFallingPlayheadBeat(null));
+        return;
+      }
+
+      const nextTargetIndex = clamp(
+        targetIndex,
+        0,
+        selectedPracticeSong.targets.length - 1,
+      );
+      const target = selectedPracticeSong.targets[nextTargetIndex];
+
+      setPracticeTargetIndex(nextTargetIndex);
+      setFallingPlayheadBeat(
+        target
+          ? Math.max(
+              getInitialFallingPlayheadBeat(selectedPracticeSong),
+              target.startBeat - fallingLeadInBeats,
+            )
+          : getInitialFallingPlayheadBeat(selectedPracticeSong),
+      );
+    },
+    [fallingLeadInBeats, selectedPracticeSong],
+  );
   const handlePracticeSongChange = useCallback(
     (practiceSongId: string): void => {
       setSelectedPracticeSongId(practiceSongId);
       setPendingPracticeSongTitle("");
-      setPracticeStepIndex(0);
+      setPracticeTargetIndex(0);
       setIsPracticePlaying(false);
 
       if (practiceSongId === PENDING_PRACTICE_SONG_ID) {
@@ -354,7 +622,7 @@ export function App(): React.ReactElement {
         return;
       }
 
-      const option = practiceSongOptions.find(
+      const option = visiblePracticeSongOptions.find(
         (practiceSongOption) =>
           practiceSongOption.id === practiceSongId &&
           practiceSongOption.status === "valid",
@@ -370,7 +638,7 @@ export function App(): React.ReactElement {
         setSelectedScale(option.song.scale);
       }
     },
-    [practiceSongOptions],
+    [visiblePracticeSongOptions],
   );
   const handlePendingPracticeSongTitleChange = useCallback(
     (title: string): void => {
@@ -378,7 +646,7 @@ export function App(): React.ReactElement {
       setIsPracticePlaying(false);
       setSelectedPracticeSongId(PENDING_PRACTICE_SONG_ID);
       setSelectedChordPreview(null);
-      setPracticeStepIndex(0);
+      setPracticeTargetIndex(0);
     },
     [],
   );
@@ -397,7 +665,7 @@ export function App(): React.ReactElement {
 
       setSelectedPracticeSongId(NONE_PRACTICE_SONG_ID);
       setPendingPracticeSongTitle("");
-      setPracticeStepIndex(0);
+      setPracticeTargetIndex(0);
       setIsPracticePlaying(false);
     },
     [],
@@ -413,44 +681,72 @@ export function App(): React.ReactElement {
   const handlePracticeBack = useCallback((): void => {
     if (practiceSongBuilderDraftRef.current) {
       setPracticeSongBuilderDraft((draft) =>
-        draft ? movePracticeSongDraftStep(draft, "previous") : draft,
+        draft ? movePracticeSongDraftTarget(draft, "previous") : draft,
       );
       return;
     }
 
-    setPracticeStepIndex((currentStepIndex) =>
-      Math.max(0, currentStepIndex - 1),
-    );
-  }, []);
+    seekPracticeTarget(practiceStateRef.current.targetIndex - 1);
+  }, [seekPracticeTarget]);
   const handlePracticeNext = useCallback((): void => {
     if (practiceSongBuilderDraftRef.current) {
       setPracticeSongBuilderDraft((draft) =>
-        draft ? movePracticeSongDraftStep(draft, "next") : draft,
+        draft ? movePracticeSongDraftTarget(draft, "next") : draft,
       );
       return;
     }
 
-    setPracticeStepIndex((currentStepIndex) => {
-      if (!selectedPracticeSong) {
-        return 0;
+    seekPracticeTarget(practiceStateRef.current.targetIndex + 1);
+  }, [seekPracticeTarget]);
+  const handlePracticeRestart = useCallback((): void => {
+    setPracticeTargetIndex(0);
+    resetPracticeRunState(selectedPracticeSong);
+  }, [resetPracticeRunState, selectedPracticeSong]);
+  const handlePracticeRunModeChange = useCallback(
+    (runMode: PracticeRunMode): void => {
+      setPracticeRunMode(runMode);
+      setPracticeTargetIndex(0);
+      setIsPracticePlaying(false);
+      resetPracticeRunState(selectedPracticeSong);
+    },
+    [resetPracticeRunState, selectedPracticeSong],
+  );
+  const handlePracticeSpeedPercentChange = useCallback(
+    (speedPercent: number): void => {
+      setPracticeSpeedPercent(clampPracticeSpeedPercent(speedPercent));
+    },
+    [],
+  );
+  const handlePracticePlayingChange = useCallback(
+    (nextIsPlaying: boolean): void => {
+      if (nextIsPlaying && selectedPracticeSong) {
+        if (selectedPracticeSongId === RANDOM_SCALE_CHORD_PRACTICE_ID) {
+          setRandomChordPracticeSeed((seed) =>
+            getNextRandomScaleChordPracticeSeed(seed),
+          );
+          setPracticeTargetIndex(0);
+        }
+
+        const playbackEndBeat =
+          getSongEndBeat(selectedPracticeSong) + PLAYBACK_END_PADDING_BEATS;
+
+        if (fallingPlayheadBeatRef.current >= playbackEndBeat) {
+          setPracticeTargetIndex(0);
+          resetPracticeRunState(selectedPracticeSong);
+        }
       }
 
-      return Math.min(
-        selectedPracticeSong.steps.length - 1,
-        currentStepIndex + 1,
-      );
-    });
-  }, [selectedPracticeSong]);
-  const handlePracticeRestart = useCallback((): void => {
-    setPracticeStepIndex(0);
-  }, []);
+      setIsPracticePlaying(nextIsPlaying);
+    },
+    [resetPracticeRunState, selectedPracticeSong, selectedPracticeSongId],
+  );
   const handlePracticeSongBuilderStart = useCallback((): void => {
     setIsPracticePlaying(false);
     setSelectedChordPreview(null);
 
     if (selectedPracticeSong) {
       setPracticeSongBuilderDraft(
-        createPracticeSongDraftFromSong(selectedPracticeSong, practiceStepIndex),
+        createPracticeSongDraftFromSong(selectedPracticeSong, practiceTargetIndex),
       );
       return;
     }
@@ -460,7 +756,7 @@ export function App(): React.ReactElement {
         createNewPracticeSongDraft(pendingPracticeSongTitle),
       );
     }
-  }, [pendingPracticeSongTitle, practiceStepIndex, selectedPracticeSong]);
+  }, [pendingPracticeSongTitle, practiceTargetIndex, selectedPracticeSong]);
   const handlePracticeSongBuilderSave = useCallback(async (): Promise<void> => {
     const draft = practiceSongBuilderDraftRef.current;
 
@@ -483,7 +779,7 @@ export function App(): React.ReactElement {
       return;
     }
 
-    const { stepIndex, ...request } = saveResult.request;
+    const { targetIndex, ...request } = saveResult.request;
 
     try {
       const response = await savePracticeSongFile(request);
@@ -493,7 +789,7 @@ export function App(): React.ReactElement {
       setPracticeSongBuilderDraft(null);
       setPendingPracticeSongTitle("");
       setSelectedPracticeSongId(response.path);
-      setPracticeStepIndex(stepIndex);
+      setPracticeTargetIndex(targetIndex);
       setIsPracticePlaying(false);
       setSelectedChordPreview(null);
     } catch (error) {
@@ -526,18 +822,187 @@ export function App(): React.ReactElement {
       );
     }
   }, []);
+  const handlePanelToggle = useCallback((panelId: PanelId): void => {
+    setPanelManagerState((state) => togglePanel(state, panelId));
+  }, []);
+  const handlePanelVisibilityChange = useCallback(
+    (panelId: PanelId, isVisible: boolean): void => {
+      setPanelManagerState((state) =>
+        setPanelVisibility(state, panelId, isVisible),
+      );
+    },
+    [],
+  );
+  const handlePanelContextMenu = useCallback(
+    (event: ReactMouseEvent<HTMLElement>): void => {
+      event.preventDefault();
+      setPanelContextMenuPosition({
+        x: Math.min(event.clientX, window.innerWidth - 232),
+        y: Math.min(event.clientY, window.innerHeight - 226),
+      });
+    },
+    [],
+  );
 
   useEffect(() => {
     practiceStateRef.current = {
       song: selectedPracticeSong,
-      stepIndex: practiceStepIndex,
+      targetIndex: practiceTargetIndex,
       isPlaying: isPracticePlaying,
+      runMode: practiceRunMode,
+      playheadBeat: fallingPlayheadBeat,
+      waitingTargetIndex: guidedWaitingTargetIndex,
     };
-  }, [isPracticePlaying, practiceStepIndex, selectedPracticeSong]);
+  }, [
+    fallingPlayheadBeat,
+    guidedWaitingTargetIndex,
+    isPracticePlaying,
+    practiceRunMode,
+    practiceTargetIndex,
+    selectedPracticeSong,
+  ]);
+
+  useEffect(() => {
+    fallingPlayheadBeatRef.current = fallingPlayheadBeat;
+  }, [fallingPlayheadBeat]);
+
+  useEffect(() => {
+    guidedCompletedTargetIdsRef.current = guidedCompletedTargetIds;
+  }, [guidedCompletedTargetIds]);
+
+  useEffect(() => {
+    performanceTargetResultsRef.current = performanceTargetResults;
+  }, [performanceTargetResults]);
+
+  useEffect(() => {
+    resetPracticeRunState(selectedPracticeSong);
+  }, [resetPracticeRunState, selectedPracticeSong]);
 
   useEffect(() => {
     practiceSongBuilderDraftRef.current = practiceSongBuilderDraft;
   }, [practiceSongBuilderDraft]);
+
+  useEffect(() => {
+    return () => {
+      for (const timeout of fallingFeedbackTimeoutsRef.current) {
+        window.clearTimeout(timeout);
+      }
+      fallingFeedbackTimeoutsRef.current = [];
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isPracticePlaying || !selectedPracticeSong) {
+      if (playbackFrameRef.current !== null) {
+        window.cancelAnimationFrame(playbackFrameRef.current);
+        playbackFrameRef.current = null;
+      }
+      return;
+    }
+
+    let lastFrameAt = performance.now();
+
+    const tick = (frameAt: number): void => {
+      const elapsedSeconds = Math.max(0, (frameAt - lastFrameAt) / 1000);
+      lastFrameAt = frameAt;
+      const practiceState = practiceStateRef.current;
+      const song = practiceState.song;
+
+      if (!song || !practiceState.isPlaying) {
+        playbackFrameRef.current = null;
+        return;
+      }
+
+      if (
+        practiceState.runMode === "guided" &&
+        practiceState.waitingTargetIndex !== null
+      ) {
+        playbackFrameRef.current = window.requestAnimationFrame(tick);
+        return;
+      }
+
+      const beatsPerSecond =
+        (song.tempoBpm * (practiceSpeedPercent / 100)) / 60;
+      const beatAdvance = elapsedSeconds * beatsPerSecond;
+      const currentPlayheadBeat = fallingPlayheadBeatRef.current;
+      let nextPlayheadBeat = currentPlayheadBeat + beatAdvance;
+
+      if (practiceState.runMode === "guided") {
+        const nextTarget = song.targets[practiceState.targetIndex];
+        const isTargetCompleted =
+          nextTarget &&
+          guidedCompletedTargetIdsRef.current.has(nextTarget.id);
+
+        if (
+          nextTarget &&
+          !isTargetCompleted &&
+          currentPlayheadBeat <= nextTarget.startBeat &&
+          nextPlayheadBeat >= nextTarget.startBeat
+        ) {
+          nextPlayheadBeat = nextTarget.startBeat;
+
+          if (
+            activeMidiNotesMatchGuidedTargetAtHitLine(
+              activeInputStateRef.current.notes,
+              nextTarget,
+              frameAt,
+            )
+          ) {
+            completeGuidedTarget(
+              song,
+              practiceState.targetIndex,
+              nextTarget,
+            );
+          } else {
+            setGuidedWaitingTargetIndex(practiceState.targetIndex);
+          }
+        }
+      } else {
+        const nextResults = markMissedPerformanceTargets(
+          song,
+          nextPlayheadBeat,
+          performanceTargetResultsRef.current,
+        );
+
+        if (nextResults !== performanceTargetResultsRef.current) {
+          performanceTargetResultsRef.current = nextResults;
+          setPerformanceTargetResults(nextResults);
+        }
+
+        setPracticeTargetIndex(
+          getTargetIndexForPlayhead(song, nextPlayheadBeat),
+        );
+      }
+
+      const playbackEndBeat =
+        getSongEndBeat(song) + PLAYBACK_END_PADDING_BEATS;
+
+      if (nextPlayheadBeat >= playbackEndBeat) {
+        nextPlayheadBeat = playbackEndBeat;
+        setIsPracticePlaying(false);
+      }
+
+      fallingPlayheadBeatRef.current = nextPlayheadBeat;
+      setFallingPlayheadBeat(nextPlayheadBeat);
+
+      playbackFrameRef.current = window.requestAnimationFrame(tick);
+    };
+
+    playbackFrameRef.current = window.requestAnimationFrame(tick);
+
+    return () => {
+      if (playbackFrameRef.current !== null) {
+        window.cancelAnimationFrame(playbackFrameRef.current);
+        playbackFrameRef.current = null;
+      }
+    };
+  }, [
+    completeGuidedTarget,
+    isPracticePlaying,
+    practiceRunMode,
+    practiceSpeedPercent,
+    selectedPracticeSong,
+  ]);
 
   useEffect(() => {
     let isMounted = true;
@@ -604,6 +1069,46 @@ export function App(): React.ReactElement {
     window.poleskiPiano?.setThemeMode?.(themeMode);
   }, [themeMode]);
 
+  useEffect(() => {
+    return window.poleskiPiano?.onPanelToggle?.(handlePanelToggle);
+  }, [handlePanelToggle]);
+
+  useEffect(() => {
+    window.poleskiPiano?.setPanelVisibility?.(panelVisibility);
+  }, [panelVisibility]);
+
+  useEffect(() => {
+    if (!panelContextMenuPosition) {
+      return;
+    }
+
+    const closeMenuOnOutsidePointer = (event: PointerEvent): void => {
+      const target = event.target;
+
+      if (
+        target instanceof Node &&
+        panelContextMenuRef.current?.contains(target)
+      ) {
+        return;
+      }
+
+      setPanelContextMenuPosition(null);
+    };
+    const closeMenuOnEscape = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") {
+        setPanelContextMenuPosition(null);
+      }
+    };
+
+    window.addEventListener("pointerdown", closeMenuOnOutsidePointer);
+    window.addEventListener("keydown", closeMenuOnEscape);
+
+    return () => {
+      window.removeEventListener("pointerdown", closeMenuOnOutsidePointer);
+      window.removeEventListener("keydown", closeMenuOnEscape);
+    };
+  }, [panelContextMenuPosition]);
+
   const enableAudio = useCallback(async (): Promise<void> => {
     try {
       await audioEngineRef.current.initialize();
@@ -623,15 +1128,15 @@ export function App(): React.ReactElement {
         event.metaKey ||
         event.ctrlKey ||
         event.altKey ||
-        shouldIgnorePracticeStepShortcut(event.target)
+        shouldIgnorePracticeTargetShortcut(event.target)
       ) {
         return;
       }
 
-      const canNavigatePracticeSteps =
+      const canNavigatePracticeTargets =
         practiceSongBuilderDraft !== null || selectedPracticeSong !== null;
 
-      if (!canNavigatePracticeSteps) {
+      if (!canNavigatePracticeTargets) {
         return;
       }
 
@@ -663,12 +1168,17 @@ export function App(): React.ReactElement {
         audioLevel={audioLevel}
         selectedScale={selectedScale}
         selectedChordPreview={selectedChordPreview}
-        practiceSongOptions={practiceSongOptions}
+        practiceSongOptions={visiblePracticeSongOptions}
         selectedPracticeSongId={selectedPracticeSongId}
         hasSelectedPracticeSong={selectedPracticeSong !== null}
         hasPendingPracticeSong={hasPendingPracticeSong}
         pendingPracticeSongTitle={pendingPracticeSongTitle}
         isPracticePlaying={isPracticePlaying}
+        practiceRunMode={practiceRunMode}
+        practiceTempoBpm={selectedPracticeSong?.tempoBpm ?? null}
+        practiceSpeedPercent={practiceSpeedPercent}
+        practiceSpeedStepPercent={PRACTICE_SPEED_STEP_PERCENT}
+        performanceScore={performanceScore}
         isPracticeSongBuilderActive={practiceSongBuilderDraft !== null}
         practiceSongBuilderTitle={practiceSongBuilderDraft?.title ?? null}
         onScaleChange={setSelectedScale}
@@ -684,31 +1194,104 @@ export function App(): React.ReactElement {
         onPracticeBack={handlePracticeBack}
         onPracticeNext={handlePracticeNext}
         onPracticeRestart={handlePracticeRestart}
-        onPracticePlayingChange={setIsPracticePlaying}
+        onPracticeRunModeChange={handlePracticeRunModeChange}
+        onPracticeSpeedPercentChange={handlePracticeSpeedPercentChange}
+        onPracticePlayingChange={handlePracticePlayingChange}
       />
 
       <main className="practice-surface">
         <div className="middle-grid">
-          <ScaleWheel
-            scale={selectedScale}
-            activePitchClasses={activePitchClasses}
-            onPitchClassInputStart={handleScalePitchClassStart}
-            onInputStop={handleScreenNoteStop}
-            inputResetKey={screenInputResetKey}
-          />
-          <ChordDisplay
-            analysis={chordAnalysis}
-            preview={chordDisplayPreview}
-          />
-          <StaffNotation
-            activeMidiNotes={orderedActiveMidiNotes}
-            activeMidiNoteGroups={activeMidiNoteGroups}
-            previewMidiNotes={previewMidiNotes}
-            onNoteInputStart={handleScreenNoteStart}
-            onInputStop={handleScreenNoteStop}
-            inputResetKey={screenInputResetKey}
-          />
+          {panelVisibility.scale ? (
+            <PanelFrame
+              definition={getPanelDefinition("scale")}
+              onContextMenu={handlePanelContextMenu}
+            >
+              <ScaleWheel
+                scale={selectedScale}
+                activePitchClasses={activePitchClasses}
+                onPitchClassInputStart={handleScalePitchClassStart}
+                onInputStop={handleScreenNoteStop}
+                inputResetKey={screenInputResetKey}
+              />
+            </PanelFrame>
+          ) : null}
+          {panelVisibility.chord ? (
+            <PanelFrame
+              definition={getPanelDefinition("chord")}
+              onContextMenu={handlePanelContextMenu}
+            >
+              <ChordDisplay
+                analysis={chordAnalysis}
+                preview={chordDisplayPreview}
+              />
+            </PanelFrame>
+          ) : null}
+          {panelVisibility.staff ? (
+            <PanelFrame
+              definition={getPanelDefinition("staff")}
+              onContextMenu={handlePanelContextMenu}
+            >
+              <StaffNotation
+                activeMidiNotes={orderedActiveMidiNotes}
+                activeMidiNoteGroups={activeMidiNoteGroups}
+                previewMidiNotes={previewMidiNotes}
+                onNoteInputStart={handleScreenNoteStart}
+                onInputStop={handleScreenNoteStop}
+                inputResetKey={screenInputResetKey}
+              />
+            </PanelFrame>
+          ) : null}
+          {panelVisibility.fallingNotes ? (
+            <PanelFrame
+              definition={getPanelDefinition("fallingNotes")}
+              onContextMenu={handlePanelContextMenu}
+            >
+              <FallingNotesPanel
+                song={selectedPracticeSong}
+                previewTarget={fallingPreviewTarget}
+                keys={keyboardKeys}
+                playheadBeat={fallingPlayheadBeat}
+                leadInBeats={fallingLeadInBeats}
+                waitingTargetId={guidedWaitingTarget?.id ?? null}
+                feedbackEvents={fallingFeedbackEvents}
+              />
+            </PanelFrame>
+          ) : null}
         </div>
+        {panelContextMenuPosition ? (
+          <div
+            ref={panelContextMenuRef}
+            aria-label="Panels"
+            className="panel-context-menu"
+            role="menu"
+            style={{
+              insetBlockStart: panelContextMenuPosition.y,
+              insetInlineStart: panelContextMenuPosition.x,
+            }}
+            onContextMenu={(event) => event.preventDefault()}
+          >
+            {PANEL_DEFINITIONS.map((definition) => (
+              <label
+                className="panel-context-option"
+                key={definition.id}
+                role="menuitemcheckbox"
+                aria-checked={panelVisibility[definition.id]}
+              >
+                <input
+                  type="checkbox"
+                  checked={panelVisibility[definition.id]}
+                  onChange={(event) =>
+                    handlePanelVisibilityChange(
+                      definition.id,
+                      event.currentTarget.checked,
+                    )
+                  }
+                />
+                <span>{definition.label}</span>
+              </label>
+            ))}
+          </div>
+        ) : null}
       </main>
 
       <PianoKeyboard
@@ -720,6 +1303,30 @@ export function App(): React.ReactElement {
         onInputStop={handleScreenNoteStop}
         inputResetKey={screenInputResetKey}
       />
+    </div>
+  );
+}
+
+interface PanelFrameProps {
+  definition: PanelDefinition;
+  onContextMenu: (event: ReactMouseEvent<HTMLElement>) => void;
+  children: ReactNode;
+}
+
+function PanelFrame({
+  definition,
+  onContextMenu,
+  children,
+}: PanelFrameProps): React.ReactElement {
+  return (
+    <div
+      className={`panel-frame panel-frame-${definition.id}`}
+      style={{
+        gridColumn: `${definition.slot + 1} / span ${definition.size}`,
+      }}
+      onContextMenu={onContextMenu}
+    >
+      {children}
     </div>
   );
 }
@@ -764,17 +1371,29 @@ function buildScaleMidiSet(scale: SelectedScale | null): Set<number> {
 
 function buildChordDisplayPreview(
   practiceSong: PracticeSong | null,
-  practiceStep: PracticeStep | null,
-  practiceStepPosition: { current: number; total: number } | null,
+  practiceTarget: PracticeTarget | null,
+  practiceTargetPosition: { current: number; total: number } | null,
   chordPreview: ChordPreview | null,
 ): ChordDisplayPreview | null {
-  if (practiceSong && practiceStep && practiceStepPosition) {
+  if (practiceSong && practiceTarget && practiceTargetPosition) {
+    const primaryChordGroup = practiceTarget.chordGroups[0] ?? null;
+    const chordToneMidiNotes = new Set(primaryChordGroup?.midiNotes ?? []);
+
     return {
       kind: "practice",
       kicker: "Practice",
       name: practiceSong.title,
-      stepCount: `${practiceStepPosition.current}/${practiceStepPosition.total}`,
-      notes: practiceStep.notes,
+      targetCount: `${practiceTargetPosition.current}/${practiceTargetPosition.total}`,
+      targetName:
+        primaryChordGroup?.name ??
+        (practiceTarget.midiNotes.length > 1 ? practiceTarget.label : null),
+      colorPitchClass: primaryChordGroup?.root ?? practiceTarget.notes[0]?.pitchClass,
+      notes: practiceTarget.notes.map((note) => ({
+        ...note,
+        isChordTone: primaryChordGroup
+          ? chordToneMidiNotes.has(note.midi)
+          : undefined,
+      })),
     };
   }
 
@@ -794,11 +1413,44 @@ function buildChordDisplayPreview(
   return null;
 }
 
+function buildChordPreviewPracticeTarget(
+  chordPreview: ChordPreview | null,
+): PracticeTarget | null {
+  if (!chordPreview) {
+    return null;
+  }
+
+  const notes: PracticeTargetNote[] = chordPreview.midiNotes.map((midi) => ({
+    midi,
+    label: midiToNoteName(midi),
+    pitchClass: midiToPitchClass(midi),
+  }));
+
+  return {
+    id: "chord-preview-target",
+    label: notes.map((note) => note.label).join(" + "),
+    chordName: chordPreview.label,
+    chordGroups: [
+      {
+        name: chordPreview.label,
+        root: chordPreview.root,
+        midiNotes: notes.map((note) => note.midi),
+        notes,
+      },
+    ],
+    startBeat: 0,
+    durationBeats: 1,
+    measureNumber: "preview",
+    midiNotes: notes.map((note) => note.midi),
+    notes,
+  };
+}
+
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Unable to save Practice Song";
 }
 
-function shouldIgnorePracticeStepShortcut(target: EventTarget | null): boolean {
+function shouldIgnorePracticeTargetShortcut(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) {
     return false;
   }
@@ -807,5 +1459,32 @@ function shouldIgnorePracticeStepShortcut(target: EventTarget | null): boolean {
     target.closest(
       'input, textarea, select, [role="listbox"], [aria-haspopup="listbox"], [contenteditable="true"]',
     ),
+  );
+}
+
+function getPanelDefinition(panelId: PanelId): PanelDefinition {
+  const definition = PANEL_DEFINITIONS.find(
+    (panelDefinition) => panelDefinition.id === panelId,
+  );
+
+  if (!definition) {
+    throw new Error(`Unknown panel: ${panelId}`);
+  }
+
+  return definition;
+}
+
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.min(maximum, Math.max(minimum, value));
+}
+
+function getNewlyHitPerformanceTargets(
+  song: PracticeSong,
+  previousResults: PracticeTargetResults,
+  nextResults: PracticeTargetResults,
+): PracticeTarget[] {
+  return song.targets.filter(
+    (target) =>
+      previousResults[target.id] !== "hit" && nextResults[target.id] === "hit",
   );
 }

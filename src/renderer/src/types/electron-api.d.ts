@@ -1,5 +1,7 @@
 export {};
 
+import type { PanelId, PanelVisibility } from "../../../shared/panels";
+
 declare global {
   interface Window {
     poleskiPiano?: {
@@ -10,15 +12,13 @@ declare global {
       };
       onThemeToggle?: (callback: () => void) => () => void;
       setThemeMode?: (themeMode: "dark" | "light") => void;
+      onPanelToggle?: (callback: (panelId: PanelId) => void) => () => void;
+      setPanelVisibility?: (panelVisibility: PanelVisibility) => void;
       listPracticeSongs?: () => Promise<Record<string, string>>;
       savePracticeSong?: (request: {
         path: string;
         overwrite: boolean;
-        song: {
-          title: string;
-          scale?: string;
-          steps: string[];
-        };
+        contents: string;
       }) => Promise<{
         path: string;
         files: Record<string, string>;

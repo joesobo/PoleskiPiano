@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { noteCssVars } from "../music/colors";
 import { getWhiteKeyCount, type PianoKey } from "../music/notes";
+import { NoteLabel } from "./NoteLabel";
 
 interface PianoKeyboardProps {
   keys: PianoKey[];
@@ -150,7 +151,9 @@ function KeyFace({
       {isPreviewed && !isActive ? (
         <span className="key-preview-marker" aria-hidden="true" />
       ) : null}
-      <span className="key-note">{keyData.note}</span>
+      <span className="key-note">
+        <NoteLabel label={keyData.note} />
+      </span>
     </div>
   );
 }

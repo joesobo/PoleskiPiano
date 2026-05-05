@@ -4,11 +4,7 @@ import { basename, join, relative } from "node:path";
 export interface PracticeSongSaveRequest {
   path: string;
   overwrite: boolean;
-  song: {
-    title: string;
-    scale?: string;
-    steps: string[];
-  };
+  contents: string;
 }
 
 export interface PracticeSongSaveResponse {
@@ -24,7 +20,7 @@ export async function listPracticeSongFiles(): Promise<Record<string, string>> {
     const files: Record<string, string> = {};
 
     for (const entry of entries) {
-      if (!entry.isFile() || !entry.name.toLowerCase().endsWith(".json")) {
+      if (!entry.isFile() || !entry.name.toLowerCase().endsWith(".musicxml")) {
         continue;
       }
 
@@ -49,10 +45,16 @@ export async function savePracticeSongFile(
 
   const songPath = resolvePracticeSongPath(request.path);
   await mkdir(getSongsDirectory(), { recursive: true });
-  await writeFile(songPath, `${JSON.stringify(request.song, null, 2)}\n`, {
-    encoding: "utf8",
-    flag: request.overwrite ? "w" : "wx",
-  });
+  await writeFile(
+    songPath,
+    request.contents.endsWith("\n")
+      ? request.contents
+      : `${request.contents}\n`,
+    {
+      encoding: "utf8",
+      flag: request.overwrite ? "w" : "wx",
+    },
+  );
 
   return {
     path: normalizePracticeSongPath(request.path),
@@ -75,23 +77,11 @@ export function assertPracticeSongSaveRequest(
     throw new Error("Practice Song overwrite mode is required");
   }
 
-  if (!isRecord(request.song)) {
-    throw new Error("Practice Song payload is required");
-  }
-
   if (
-    typeof request.song.title !== "string" ||
-    request.song.title.trim().length === 0
+    typeof request.contents !== "string" ||
+    request.contents.trim().length === 0
   ) {
-    throw new Error("Practice Song title is required");
-  }
-
-  if (
-    !Array.isArray(request.song.steps) ||
-    request.song.steps.length === 0 ||
-    !request.song.steps.every((step) => typeof step === "string")
-  ) {
-    throw new Error("Practice Song steps are required");
+    throw new Error("Practice Song MusicXML content is required");
   }
 }
 
@@ -109,7 +99,7 @@ function resolvePracticeSongPath(path: string): string {
     relativePath.startsWith("..") ||
     relativePath.includes("/") ||
     relativePath.includes("\\") ||
-    !filename.toLowerCase().endsWith(".json")
+    !filename.toLowerCase().endsWith(".musicxml")
   ) {
     throw new Error("Invalid Practice Song path");
   }

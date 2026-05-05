@@ -1,17 +1,20 @@
 import { noteCssVars } from "../music/colors";
 import type { ChordAnalysis } from "../music/chords";
 import type { PitchClass } from "../music/notes";
+import { NoteLabel } from "./NoteLabel";
 
 interface ChordDisplayPreviewNote {
   label: string;
   pitchClass: PitchClass;
+  isChordTone?: boolean;
 }
 
 export interface ChordDisplayPreview {
   kind: "chord" | "practice";
   kicker: string;
   name: string;
-  stepCount?: string;
+  targetName?: string | null;
+  targetCount?: string;
   colorPitchClass?: PitchClass;
   message?: string | null;
   notes: ChordDisplayPreviewNote[];
@@ -37,8 +40,20 @@ export function ChordDisplay({
           preview.kind === "practice" ? (
             <div className="practice-preview-title-row">
               <span className="practice-preview-title">{preview.name}</span>
-              {preview.stepCount ? (
-                <span className="practice-preview-count">{preview.stepCount}</span>
+              {preview.targetCount ? (
+                <span className="practice-preview-count">{preview.targetCount}</span>
+              ) : null}
+              {preview.targetName ? (
+                <span
+                  className="practice-preview-target-name"
+                  style={
+                    previewColorPitchClass
+                      ? noteCssVars(previewColorPitchClass)
+                      : undefined
+                  }
+                >
+                  {preview.targetName}
+                </span>
               ) : null}
             </div>
           ) : (
@@ -61,11 +76,15 @@ export function ChordDisplay({
       <div className="preview-note-pills" aria-hidden={!preview}>
         {preview?.notes.map((note, index) => (
           <span
-            className="note-pill note-pill-preview"
+            className={[
+              "note-pill",
+              "note-pill-preview",
+              note.isChordTone ? "is-chord-tone" : "",
+            ].join(" ")}
             key={`${note.label}-${index}`}
             style={noteCssVars(note.pitchClass)}
           >
-            {note.label}
+            <NoteLabel label={note.label} />
           </span>
         ))}
       </div>
@@ -85,7 +104,7 @@ export function ChordDisplay({
             key={pitchClass}
             style={noteCssVars(pitchClass)}
           >
-            {pitchClass}
+            <NoteLabel label={pitchClass} />
           </span>
         ))}
       </div>

@@ -10,15 +10,15 @@
     "dev": "node scripts/run-electron-vite.mjs dev",
     "build": "tsc --noEmit && electron-vite build",
     "preview": "node scripts/run-electron-vite.mjs preview",
-    "song:from-midi": "node scripts/midi-to-song-json.mjs",
     "test": "vitest run"
   },
   "dependencies": {
     "@tonejs/piano": "0.2.1",
-    "tone": "14.9.17",
-    "webmidi": "2.5.3",
+    "fast-xml-parser": "^5.7.2",
     "react": "19.2.5",
-    "react-dom": "19.2.5"
+    "react-dom": "19.2.5",
+    "tone": "14.9.17",
+    "webmidi": "2.5.3"
   },
   "devDependencies": {
     "@types/node": "latest",

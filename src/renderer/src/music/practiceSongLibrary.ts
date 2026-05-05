@@ -3,7 +3,7 @@ import {
   type PracticeSongOption,
 } from "./practiceSongs";
 
-const practiceSongFiles = import.meta.glob<string>("../../../../songs/*.json", {
+const practiceSongFiles = import.meta.glob<string>("../../../../songs/*.musicxml", {
   eager: true,
   import: "default",
   query: "?raw",

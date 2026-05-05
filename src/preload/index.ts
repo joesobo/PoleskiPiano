@@ -1,4 +1,5 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
+import type { PanelId, PanelVisibility } from "../shared/panels";
 
 contextBridge.exposeInMainWorld("poleskiPiano", {
   platform: process.platform,
@@ -16,16 +17,23 @@ contextBridge.exposeInMainWorld("poleskiPiano", {
   setThemeMode: (themeMode: "dark" | "light") => {
     ipcRenderer.send("theme:mode-changed", themeMode);
   },
+  onPanelToggle: (callback: (panelId: PanelId) => void) => {
+    const listener = (_event: IpcRendererEvent, panelId: PanelId): void =>
+      callback(panelId);
+
+    ipcRenderer.on("panel:toggle", listener);
+
+    return () => ipcRenderer.removeListener("panel:toggle", listener);
+  },
+  setPanelVisibility: (panelVisibility: PanelVisibility) => {
+    ipcRenderer.send("panels:visibility-changed", panelVisibility);
+  },
   listPracticeSongs: () =>
     ipcRenderer.invoke("practice-songs:list") as Promise<Record<string, string>>,
   savePracticeSong: (request: {
     path: string;
     overwrite: boolean;
-    song: {
-      title: string;
-      scale?: string;
-      steps: string[];
-    };
+    contents: string;
   }) =>
     ipcRenderer.invoke("practice-songs:save", request) as Promise<{
       path: string;

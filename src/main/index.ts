@@ -5,9 +5,18 @@ import {
   Menu,
   shell,
   session,
-  type MenuItemConstructorOptions,
 } from "electron";
 import { join } from "node:path";
+import {
+  DEFAULT_PANEL_VISIBILITY,
+  PANEL_DEFINITIONS,
+  type PanelId,
+  type PanelVisibility,
+} from "../shared/panels";
+import {
+  createApplicationMenuTemplate,
+  type ThemeMode,
+} from "./appMenu";
 import {
   listPracticeSongFiles,
   savePracticeSongFile,
@@ -20,7 +29,9 @@ app.commandLine.appendSwitch("enable-features", "WebMidi");
 app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
 
 const isMac = process.platform === "darwin";
-type ThemeMode = "dark" | "light";
+const currentPanelVisibility: PanelVisibility = {
+  ...DEFAULT_PANEL_VISIBILITY,
+};
 
 function configureMidiPermissions(): void {
   const allowedMidiPermissions = new Set(["midi", "midiSysex"]);
@@ -37,92 +48,31 @@ function configureMidiPermissions(): void {
 }
 
 function configureApplicationMenu(): void {
-  const appMenu: MenuItemConstructorOptions[] = isMac
-    ? [
-        {
-          label: APP_NAME,
-          submenu: [
-            { role: "about" },
-            { type: "separator" },
-            { role: "services" },
-            { type: "separator" },
-            { role: "hide" },
-            { role: "hideOthers" },
-            { role: "unhide" },
-            { type: "separator" },
-            { role: "quit" },
-          ],
-        },
-      ]
-    : [];
-  const fileSubmenu: MenuItemConstructorOptions[] = [
-    isMac ? { role: "close" } : { role: "quit" },
-  ];
-  const platformEditSubmenu: MenuItemConstructorOptions[] = isMac
-    ? [
-        { role: "pasteAndMatchStyle" },
-        { role: "delete" },
-        { role: "selectAll" },
-      ]
-    : [{ role: "delete" }, { type: "separator" }, { role: "selectAll" }];
-  const editSubmenu: MenuItemConstructorOptions[] = [
-    { role: "undo" },
-    { role: "redo" },
-    { type: "separator" },
-    { role: "cut" },
-    { role: "copy" },
-    { role: "paste" },
-    ...platformEditSubmenu,
-  ];
-  const viewSubmenu: MenuItemConstructorOptions[] = [
-    {
-      id: "appearance-toggle",
-      label: "Use Light Appearance",
-      accelerator: "CmdOrCtrl+Shift+L",
-      click: () => {
-        for (const window of BrowserWindow.getAllWindows()) {
-          window.webContents.send("theme:toggle");
-        }
-      },
-    },
-    { type: "separator" },
-    { role: "reload" },
-    { role: "toggleDevTools" },
-    { type: "separator" },
-    { role: "resetZoom" },
-    { role: "zoomIn" },
-    { role: "zoomOut" },
-  ];
-  const windowSubmenu: MenuItemConstructorOptions[] = [
-    isMac ? { role: "minimize" } : { role: "close" },
-  ];
-  const template: MenuItemConstructorOptions[] = [
-    ...appMenu,
-    {
-      label: "File",
-      submenu: fileSubmenu,
-    },
-    {
-      label: "Edit",
-      submenu: editSubmenu,
-    },
-    {
-      label: "View",
-      submenu: viewSubmenu,
-    },
-    {
-      role: "window",
-      submenu: windowSubmenu,
-    },
-  ];
-
-  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate(
+      createApplicationMenuTemplate({
+        isMac,
+        panelVisibility: currentPanelVisibility,
+        onToggleAppearance: sendThemeToggle,
+        onTogglePanel: sendPanelToggle,
+      }),
+    ),
+  );
 }
 
 function configureThemeMenuUpdates(): void {
   ipcMain.on("theme:mode-changed", (_event, themeMode: ThemeMode) => {
     updateAppearanceMenuLabel(themeMode);
   });
+}
+
+function configurePanelMenuUpdates(): void {
+  ipcMain.on(
+    "panels:visibility-changed",
+    (_event, panelVisibility: PanelVisibility) => {
+      updatePanelMenuCheckedState(panelVisibility);
+    },
+  );
 }
 
 function configurePracticeSongFiles(): void {
@@ -133,12 +83,40 @@ function configurePracticeSongFiles(): void {
   );
 }
 
+function sendThemeToggle(): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    window.webContents.send("theme:toggle");
+  }
+}
+
+function sendPanelToggle(panelId: PanelId): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    window.webContents.send("panel:toggle", panelId);
+  }
+}
+
 function updateAppearanceMenuLabel(themeMode: ThemeMode): void {
   const menuItem = Menu.getApplicationMenu()?.getMenuItemById("appearance-toggle");
 
   if (menuItem) {
     menuItem.label =
       themeMode === "dark" ? "Use Light Appearance" : "Use Dark Appearance";
+  }
+}
+
+function updatePanelMenuCheckedState(panelVisibility: PanelVisibility): void {
+  for (const definition of PANEL_DEFINITIONS) {
+    currentPanelVisibility[definition.id] = Boolean(
+      panelVisibility[definition.id],
+    );
+
+    const menuItem = Menu.getApplicationMenu()?.getMenuItemById(
+      `panel:${definition.id}`,
+    );
+
+    if (menuItem) {
+      menuItem.checked = currentPanelVisibility[definition.id];
+    }
   }
 }
 
@@ -187,6 +165,7 @@ app.whenReady().then(() => {
 
   configureApplicationMenu();
   configureThemeMenuUpdates();
+  configurePanelMenuUpdates();
   configurePracticeSongFiles();
   configureMidiPermissions();
   createWindow();

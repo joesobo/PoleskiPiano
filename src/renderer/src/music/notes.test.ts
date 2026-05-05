@@ -4,6 +4,7 @@ import {
   DEFAULT_HIGH_MIDI,
   DEFAULT_LOW_MIDI,
   getWhiteKeyCount,
+  getNoteDisplayParts,
   mapMidiInputToKeyboardMidi,
   midiToNoteName,
   noteNameToMidi,
@@ -19,7 +20,22 @@ describe("note mapping", () => {
   it("round-trips note names used by the Launchkey range", () => {
     expect(noteNameToMidi("C2")).toBe(36);
     expect(noteNameToMidi("F#3")).toBe(54);
+    expect(noteNameToMidi("Gb3")).toBe(54);
+    expect(noteNameToMidi("G♭3")).toBe(54);
     expect(noteNameToMidi("C5")).toBe(72);
+  });
+
+  it("formats sharp notes with flat aliases and separates octave display", () => {
+    expect(getNoteDisplayParts("A#2")).toEqual({
+      primary: "A#",
+      enharmonic: "B♭",
+      octave: "2",
+    });
+    expect(getNoteDisplayParts("C3")).toEqual({
+      primary: "C",
+      enharmonic: null,
+      octave: "3",
+    });
   });
 
   it("maps the 37-key controller octave down to the app keyboard range", () => {

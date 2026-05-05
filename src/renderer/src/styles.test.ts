@@ -57,8 +57,16 @@ describe("practice song styles", () => {
     expect(styles).toMatch(/\.is-invalid-song-option\s*\{[^}]*opacity:\s*0\.44/s);
     expect(styles).toMatch(/\.song-invalid-marker\s*\{[^}]*background:\s*var\(--red\)/s);
     expect(styles).toMatch(/\.practice-song-controls\s*\{/);
+    expect(styles).toMatch(/\.practice-mode-control,\s*\n\.practice-speed-control\s*\{/);
+    expect(styles).toMatch(/\.practice-tempo-readout\s*\{/);
+    expect(styles).not.toMatch(/\.practice-tempo-readout,\s*\n\.practice-score-readout/s);
     expect(styles).toMatch(/\.practice-preview-title-row\s*\{/);
     expect(styles).toMatch(/\.practice-preview-count\s*\{/);
+    expect(styles).toMatch(/\.practice-preview-target-name\s*\{/);
+    expect(styles).toMatch(/\.note-label\s*\{/);
+    expect(styles).toMatch(/\.note-label-line\s*\{/);
+    expect(styles).not.toMatch(/\.note-label sup\s*\{/);
+    expect(styles).toMatch(/\.note-pill-preview\.is-chord-tone\s*\{/);
     expect(styles).toMatch(/\.signal-status\s*\{/);
   });
 
@@ -75,5 +83,25 @@ describe("practice song styles", () => {
     expect(styles).toMatch(
       /\.top-bar button,\s*\n\.top-bar select,\s*\n\.top-bar input\s*\{[^}]*-webkit-app-region:\s*no-drag/s,
     );
+  });
+});
+
+describe("panel manager styles", () => {
+  it("adds stable frames, a full-width falling notes panel, and a panel context menu", () => {
+    expect(styles).toMatch(/\.panel-frame\s*\{/);
+    expect(styles).toMatch(/\.falling-notes-panel\s*\{/);
+    expect(styles).toMatch(/\.falling-notes-panel\s*\{[^}]*padding:\s*0/s);
+    expect(styles).toMatch(/\.falling-notes-stage\s*\{/);
+    expect(styles).toMatch(/\.falling-notes-white-lanes\s*\{/);
+    expect(styles).toMatch(/\.falling-note-hit-line\s*\{/);
+    expect(styles).toMatch(/\.falling-note-block\.is-preview,\s*\n\.falling-chord-block\.is-preview\s*\{/);
+    expect(styles).toMatch(/\.falling-chord-block\s*\{/);
+    expect(styles).toMatch(/\.falling-chord-block-name\s*\{/);
+    expect(styles).toMatch(/\.falling-chord-tone-label\s*\{/);
+    expect(styles).toMatch(/\.falling-note-feedback\s*\{/);
+    expect(styles).not.toMatch(/\.falling-notes-title\s*\{/);
+    expect(styles).toMatch(/@keyframes falling-note-correct\s*\{/);
+    expect(styles).toMatch(/\.panel-context-menu\s*\{/);
+    expect(styles).toMatch(/\.panel-context-option\s*\{/);
   });
 });

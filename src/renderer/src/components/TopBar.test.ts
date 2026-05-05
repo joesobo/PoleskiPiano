@@ -12,16 +12,63 @@ import {
 
 const validSongOption = {
   status: "valid" as const,
-  id: "songs/good.json",
+  id: "songs/good.musicxml",
   title: "Good Song",
-  path: "songs/good.json",
+  path: "songs/good.musicxml",
   song: {
-    id: "songs/good.json",
+    id: "songs/good.musicxml",
     title: "Good Song",
     scale: null,
-    steps: [],
+    tempoBpm: 72,
+    timeSignature: "4/4",
+    notes: [],
+    targets: [],
+    measures: [],
   },
 };
+
+type TopBarPropsForTest = Parameters<typeof TopBar>[0];
+
+function topBarProps(
+  overrides: Partial<TopBarPropsForTest> = {},
+): TopBarPropsForTest {
+  return {
+    midiStatus: { supported: true, permission: "granted", inputs: [] },
+    audioLevel: 0,
+    selectedScale: null,
+    selectedChordPreview: null,
+    practiceSongOptions: [validSongOption],
+    selectedPracticeSongId: validSongOption.id,
+    hasSelectedPracticeSong: true,
+    hasPendingPracticeSong: false,
+    pendingPracticeSongTitle: "",
+    isPracticePlaying: false,
+    practiceRunMode: "guided" as const,
+    practiceTempoBpm: validSongOption.song.tempoBpm,
+    practiceSpeedPercent: 100,
+    practiceSpeedStepPercent: 10,
+    performanceScore: { hits: 0, total: 0, percent: 0 },
+    isPracticeSongBuilderActive: false,
+    practiceSongBuilderTitle: null,
+    onScaleChange: () => undefined,
+    onChordPreviewChange: () => undefined,
+    onPracticeSongChange: () => undefined,
+    onPendingPracticeSongTitleChange: () => undefined,
+    onPendingPracticeSongSubmit: () => undefined,
+    onPendingPracticeSongCancel: () => undefined,
+    onPracticeSongBuilderTitleChange: () => undefined,
+    onPracticeSongBuilderStart: () => undefined,
+    onPracticeSongBuilderSave: () => undefined,
+    onPracticeSongBuilderCancel: () => undefined,
+    onPracticeBack: () => undefined,
+    onPracticeNext: () => undefined,
+    onPracticeRestart: () => undefined,
+    onPracticeRunModeChange: () => undefined,
+    onPracticeSpeedPercentChange: () => undefined,
+    onPracticePlayingChange: () => undefined,
+    ...overrides,
+  };
+}
 
 describe("TopBar chord preview options", () => {
   it("colors chord preview options only when a scale is selected", () => {
@@ -49,77 +96,43 @@ describe("TopBar chord preview selected value", () => {
 describe("TopBar layout", () => {
   it("keeps Chord Preview visible when a Practice Song is selected", () => {
     const html = renderToStaticMarkup(
-      createElement(TopBar, {
-        midiStatus: { supported: true, permission: "granted", inputs: [] },
-        audioLevel: 0,
-        selectedScale: null,
-        selectedChordPreview: null,
-        practiceSongOptions: [validSongOption],
-        selectedPracticeSongId: validSongOption.id,
-        hasSelectedPracticeSong: true,
-        hasPendingPracticeSong: false,
-        pendingPracticeSongTitle: "",
-        isPracticePlaying: false,
-        isPracticeSongBuilderActive: false,
-        practiceSongBuilderTitle: null,
-        onScaleChange: () => undefined,
-        onChordPreviewChange: () => undefined,
-        onPracticeSongChange: () => undefined,
-        onPendingPracticeSongTitleChange: () => undefined,
-        onPendingPracticeSongSubmit: () => undefined,
-        onPendingPracticeSongCancel: () => undefined,
-        onPracticeSongBuilderTitleChange: () => undefined,
-        onPracticeSongBuilderStart: () => undefined,
-        onPracticeSongBuilderSave: () => undefined,
-        onPracticeSongBuilderCancel: () => undefined,
-        onPracticeBack: () => undefined,
-        onPracticeNext: () => undefined,
-        onPracticeRestart: () => undefined,
-        onPracticePlayingChange: () => undefined,
-      }),
+      createElement(TopBar, topBarProps()),
     );
 
     expect(html).toContain("Chord Preview");
     expect(html).toContain("Song");
     expect(html).toContain("Good Song");
-    expect(html).toContain("Previous Practice Step");
+    expect(html).toContain("Previous Practice Target");
+    expect(html).toContain("Guided Practice");
+    expect(html).toContain("72 BPM");
+    expect(html).toContain("100%");
   });
 
   it("renders new song title entry in the temporary action row", () => {
     const html = renderToStaticMarkup(
-      createElement(TopBar, {
-        midiStatus: { supported: true, permission: "granted", inputs: [] },
-        audioLevel: 0,
-        selectedScale: null,
-        selectedChordPreview: null,
-        practiceSongOptions: [validSongOption],
+      createElement(TopBar, topBarProps({
         selectedPracticeSongId: PENDING_PRACTICE_SONG_ID,
         hasSelectedPracticeSong: false,
         hasPendingPracticeSong: true,
-        pendingPracticeSongTitle: "",
-        isPracticePlaying: false,
-        isPracticeSongBuilderActive: false,
-        practiceSongBuilderTitle: null,
-        onScaleChange: () => undefined,
-        onChordPreviewChange: () => undefined,
-        onPracticeSongChange: () => undefined,
-        onPendingPracticeSongTitleChange: () => undefined,
-        onPendingPracticeSongSubmit: () => undefined,
-        onPendingPracticeSongCancel: () => undefined,
-        onPracticeSongBuilderTitleChange: () => undefined,
-        onPracticeSongBuilderStart: () => undefined,
-        onPracticeSongBuilderSave: () => undefined,
-        onPracticeSongBuilderCancel: () => undefined,
-        onPracticeBack: () => undefined,
-        onPracticeNext: () => undefined,
-        onPracticeRestart: () => undefined,
-        onPracticePlayingChange: () => undefined,
-      }),
+      })),
     );
 
     expect(html).toContain("New Song");
     expect(html).toContain("Song title");
     expect(html).toContain("Create Practice Song");
+  });
+
+  it("shows score only in Performance Practice", () => {
+    const html = renderToStaticMarkup(
+      createElement(TopBar, topBarProps({
+        practiceRunMode: "performance",
+        performanceScore: { hits: 18, total: 24, percent: 75 },
+      })),
+    );
+
+    expect(html).toContain("Performance Practice");
+    expect(html).toContain("18/24");
+    expect(html).toContain("75%");
   });
 });
 
@@ -128,9 +141,9 @@ describe("TopBar practice song options", () => {
     expect(
       getPracticeSongOptionClassName({
         status: "invalid",
-        id: "songs/bad.json",
+        id: "songs/bad.musicxml",
         title: "Bad Song",
-        path: "songs/bad.json",
+        path: "songs/bad.musicxml",
         error: "Invalid Practice Song scale",
       }),
     ).toBe("is-invalid-song-option");

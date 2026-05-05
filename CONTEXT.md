@@ -54,96 +54,122 @@ PoleskiPiano is a lightweight native desktop piano-learning app for a small 37-k
 - Chord preview notes use the same pitch-class colors as live notes, but lighter or more transparent. On the piano keyboard, chord preview uses small colored target circles while selected scale owns full-key tinting.
 - Chord preview notes remain visible even when they are outside the selected scale.
 - Chord preview uses existing note labels only; it does not add extra labels to ghosted notes.
-- Chord preview applies to the chord display, grand staff, and piano keyboard. The pitch circle remains a scale-structure view for now.
+- Chord preview applies to the chord display, grand staff, Falling Notes View, and piano keyboard. The pitch circle remains a scale-structure view for now.
+- In Falling Notes View, Chord Preview appears as a frozen ghost chord block aligned to the same key lanes as real falling notes.
 - Initial chord preview choices are the 12 major triads and 12 minor triads. Seventh, suspended, diminished, augmented, inversions, and octave variants are deferred.
 - Chord preview remains independent from the selected scale. Chord name text in the preview selector uses the chord root's pitch-class color; when a scale is selected, options outside that scale are dimmed, not hidden or disabled.
 - A preview chord is considered inside a selected scale only when all of the chord's notes belong to that scale.
 - MIDI connection is represented in the top bar by a connected/unconnected status light, not the MIDI device name.
 - MIDI connection status and audio activity should sit together as a compact signal cluster on the far left of the top bar.
 - Theme switching is a native app command under the View menu, not a visible control in the practice surface. The command uses Appearance wording.
-- Practice Preview reuses the same ghost-note visual language as Chord Preview, but it is sourced from the current Practice Step.
+- Practice Preview reuses the same ghost-note visual language as Chord Preview, but it is sourced from the current Practice Target.
 - When a Practice Song is selected, Practice Preview owns the ghost target surface and the Chord Preview value is reset to None.
 - The top bar keeps Scale, Chord Preview, and Song selectors visible together in the top row. Song sits at the far right.
 - Song and Chord Preview are mutually exclusive selections: choosing a Practice Song clears Chord Preview, and choosing a non-None Chord Preview clears the selected Practice Song.
-- Practice controls and Practice Song Builder controls appear in a temporary second top-bar row only when needed.
+- Practice controls and authoring controls appear in a temporary second top-bar row only when needed.
 - Creating a new Practice Song starts from a plain `New Song` choice in the Song selector, then shows the title entry and create/cancel controls in the temporary second top-bar row. The Song selector menu is selection-only, not a text-entry surface.
-- Practice Preview shows the selected Practice Song title and current step count as lightweight context, such as `Song Name 2/12`.
-- Practice Preview shows the Practice Song title as normal text with the current step count beside it.
-- Practice Preview shows only the current Practice Step's note or notes below the title as ghosted targets, matching the Chord Preview visual treatment.
+- Practice Preview shows the selected Practice Song title and current target count as lightweight context, such as `Song Name 2/12`.
+- Practice Preview shows the Practice Song title as normal text with the current target count beside it.
+- Practice Preview shows only the current Practice Target's note or notes below the title as ghosted targets, matching the Chord Preview visual treatment.
 - Beginner-facing UI should avoid unexplained theory terms such as diatonic, borrowed, and chromatic.
 - Default keyboard range is C2 through C5.
 - On-screen input uses the same C2-C5 keyboard range. It does not introduce scrolling, range extension, or separate playable ranges in v0.
-- A Practice Song is an ordered list of Practice Steps for rudimentary song practice.
-- A Practice Step is one expected note, chord, or note set the learner should play before moving forward.
-- Practice Songs are local JSON objects with `title` and ordered `steps`. The selector uses `title`; missing titles fall back to filename.
-- Practice Songs can optionally include `scale`, such as `D major`, to describe the song's passive scale structure.
-- Practice Song files live in the root `songs/` folder.
-- Practice Songs can be generated from local MIDI files the learner has rights to use. The importer groups MIDI notes that start together into one Practice Step.
-- The MIDI importer should fail visibly on out-of-range notes by default instead of silently creating unusable Practice Songs. Transpose and rough-draft drop options are explicit.
-- Practice Step strings support exact notes with octave such as `C3`, pitch classes without octave such as `F#`, major/minor chord aliases such as `CMajor` and `DMinor`, and simultaneous sets joined by `+`.
-- Pitch classes without octave in Practice Steps default to octave 3.
-- A Practice Step can mix explicit notes and chord aliases, such as `G2 + DMajor`. Chord aliases expand to their current third-octave chord preview shape.
-- Practice Step parsing is case-insensitive. Flats, rests, rhythm, measures, lyrics, and durations are deferred.
-- While playing a Practice Song, a Practice Step is matched by exact active note set. Note order and release order do not matter.
-- A Practice Step does not advance when expected notes are missing or when extra notes are active.
-- Practice Step advancement is triggered by physical MIDI keyboard input only. On-screen input still plays audio and updates the practice surface, but it does not complete Practice Steps.
+- A Practice Song is readable notation plus timed practice targets loaded from a local song file.
+- MusicXML is the planned canonical Practice Song source for falling-notes practice.
+- Practice Songs should preserve enough notation structure for the learner to read the music while the app derives falling-note timing from the same source.
+- Existing JSON `steps` songs were converted to MusicXML as a breaking change rather than supported through a legacy compatibility path.
+- MIDI remains important as live input, but MIDI is not the planned canonical saved song format for falling-notes practice.
+- Practice Song files are planned to use the `.musicxml` extension. `.xml` aliases and compressed `.mxl` files are out of scope for the first MusicXML implementation.
+- Practice Song files live in the root `songs/` folder as `.musicxml` files.
+- Falling-note targets should be derived from MusicXML note duration, rests, ties, chords, tempo, and measure structure.
+- The first MusicXML implementation should support one Piano Part with up to two staves. Multi-part and multi-instrument scores are out of scope.
+- The first MusicXML parser/renderer slice should support a beginner-piano subset: `score-partwise`, one part, measures, divisions, key signature, time signature, clefs, staves, notes, pitches, rests, durations, note types, dots, chords, ties, staff, voice, and tempo from `direction/sound tempo`.
+- Note-length notation should support stems and beams as display metadata when present, and derive basic stems/beams when absent.
+- Lyrics, articulations, dynamics, repeats, tuplets, pedal markings, ornaments, and multiple parts are out of scope for the first MusicXML implementation.
+- Falling Notes View should use the full 3x1 middle-grid space when the Scale Wheel, Chord Display, and Staff Notation panels are hidden.
+- The bottom Piano Keyboard remains visible in Falling Notes View.
+- Falling Notes should not be a fourth 1x1 panel in the middle grid.
+- Falling Notes should align horizontally to the full visible 37-key Piano Keyboard, including black-key offsets. Song-range zoom is deferred.
+- Falling Notes should always show compact light-colored note labels when the note block has enough room.
+- Chord falling-note groups render as wide chord blocks spanning only the chord member Piano Keys. The chord block carries the chord name, such as `Cmaj`, and small labels for the notes that make up the chord.
+- If a named chord is part of a larger simultaneous target, such as `Cmaj + D3`, the chord block still covers only the chord tones and the extra note renders as a normal falling note layered above it.
+- Falling note labels should be visually recessed into the block by deriving the label color from the note color instead of using a separate bright text color.
+- Note labels should show enharmonic flat aliases for sharp notes on a second line, such as `A#2` over `B♭2`, while keeping internal note ids in the canonical sharp form.
+- Falling Notes should use lighter key-tint versions of pitch-class colors, closer to the UI keyboard highlight color than saturated note-pill colors.
+- Falling Notes v1 should use pitch-class colors only to reinforce visual note association. Left/right hand colors are deferred.
+- Falling Notes View should not repeat the selected song title inside the panel because song identity already lives in the top bar.
+- Falling Notes View should not add side padding around the visual lane because the falling-note lanes need to align edge-to-edge with the bottom 37-key Piano Keyboard.
+- Middle-grid visibility should be managed by a Panel Manager. Panels declare sizes, and toggling a panel on can toggle off whatever visible panels are needed to make space.
+- Scale Wheel, Chord Display, and Staff Notation are `1x1` middle panels. Falling Notes View is a `3x1` middle panel.
+- Panel Manager eviction is recency-based: the requested panel becomes most recent and stays visible, while the oldest visible panels are toggled off until the requested panel fits.
+- Panels remember their middle-grid positions. Chord Display should keep returning to the middle slot when visible.
+- A panel's remembered middle-grid position is a claim. When toggled on, the requested panel takes its remembered slot and evicts the occupant if needed.
+- Panel visibility can be changed from a right-click panel context menu and from native `View > Panels` checkbox menu items.
+- Guided Practice waits at each target until the learner plays the required note or chord.
+- Guided Practice accepts a small early hit window before the target reaches the hit line, so improved playing can feel closer to continuous Performance Practice.
+- The shared early-hit window is `150ms`, intentionally inside the requested `100ms` to `250ms` range so a learner cannot hold the key long before the note arrives.
+- Guided Practice advances on correct note or chord onset. Hold-duration feedback can be shown, but hold duration does not block advancement in v1.
+- In Guided Practice, the entire Falling Notes timeline pauses when the start of the next falling note reaches the hit line.
+- A Guided Practice pause resumes only after the learner plays every note in the current Practice Target. Chord targets require all required notes.
+- Guided Practice chord targets allow easy-mode accumulation while paused: the learner can add chord notes one by one, and the timeline resumes when all required notes are currently held together.
+- Wrong extra notes pressed as part of the current target attempt block Guided Practice resume until released.
+- Older notes that are still held from a previous target do not block the next target. This supports connected-note practice, such as holding C while playing D, without requiring release timing in v1.
+- Performance Practice keeps the song clock running at tempo and scores whether each required note is hit while its falling note overlaps the hit line.
+- Performance Practice accepts the same small early hit window as Guided Practice.
+- In Performance Practice, the visible falling-note duration is the hit window. If the note overlaps the hit line for `0.5s`, the learner has `0.5s` to press the correct Piano Key.
+- Performance Practice score does not grade early/late precision inside the active hit window.
+- Falling note length is a visual hold hint and hit-window duration, not a separate release-scored metric in v1.
+- Performance Practice score is target-level and black-and-white in v1. Chord targets require every required note during the active hit window; partial chord credit is deferred.
+- Performance Practice score is shown as `hits / total` plus percent, such as `18/24 · 75%`. Guided Practice does not show a score.
+- Wrong keys are feedback-only in v1 Performance Practice. They do not directly change score or immediately mark the current target missed.
+- Falling Notes are visual note spans with start time, duration, end time, pitch, label, and pitch-class color. Ties merge into one longer visual span; overlapping held notes remain separate spans.
+- Practice Targets are onset groups used for Guided Practice pauses and chord requirements. Falling Note spans define visual hold cues and each note's active hit window.
+- If one note is held while another starts later, the learner can score both by pressing each note during its own active span. Holding the first note for its full visual duration is encouraged visually but not required for score in v1.
+- Practice Song BPM comes from MusicXML tempo and is fixed/display-only in the app.
+- Falling Notes playback speed is a learner-controlled percentage that defaults to `100%` and scales the song clock without changing the song's saved BPM.
+- Falling Notes playback speed can be adjusted from `25%` to `200%`.
+- The fixed BPM display should read as compact metadata, not as a clickable button.
+- Falling Notes UI should label the two song behaviors as `Guided Practice` and `Performance Practice`; avoid `Practice Mode` and `Play Mode` in the app language.
+- Guided/Performance mode, fixed BPM display, speed percentage control, and playback controls belong in the temporary second top-bar row when a Practice Song is selected.
+- Falling Notes View should focus on the piano-roll visual lane rather than duplicating playback controls inside the panel.
+- Falling Notes v1 should use a short visual lead-in instead of a heavy countdown. Notes should already be entering from the top of the panel when playback starts, with roughly a measure or less before the first target reaches the hit line.
+- Correct target hits should trigger a subtle visual confirmation effect near the hit line.
+- Metronome sound is deferred.
+- Falling-note timing feedback should feel like forgiving game-style practice, closer to Rock Band or Yousician than strict classical assessment.
+- Wrong-key feedback should register immediately when a played note is outside the active target, but it should not consume the correct target in the first implementation.
+- The current Practice Song Builder should be replaced by a small Notation Builder for MusicXML authoring.
+- The first Notation Builder should support choosing a note duration, toggling notes from the keyboard/staff, adding rests, moving measure-by-measure, and saving valid beginner MusicXML.
+- Notation Builder should generate MusicXML behind the scenes and should not expose raw XML editing.
+- Notation Builder should remain intentionally basic first and grow later.
+- A Practice Target is one timed note onset, chord onset, or note set derived from MusicXML.
+- While playing the current guided Practice Song flow, a Practice Target is matched by exact active note set. Note order and release order do not matter.
+- A Practice Target does not advance when expected notes are missing or when extra notes are active.
+- Practice Target advancement is triggered by physical MIDI keyboard input only. On-screen input still plays audio and updates the practice surface, but it does not complete Practice Targets.
 - When a Practice Song is selected but paused, MIDI and on-screen input behave normally for audio, highlighting, chord display, and staff display. Auto-advance is off until playback is started.
-- Selecting a Practice Song resets to the first Practice Step and starts paused.
-- Switching between Practice Songs resets to the new song's first Practice Step and starts paused.
+- Selecting a Practice Song resets to the first Practice Target and starts paused.
+- Switching between Practice Songs resets to the new song's first Practice Target and starts paused.
 - Switching the Practice Song selector back to None clears Practice Preview while leaving the Chord Preview selector visible.
 - Selecting a Practice Song with `scale` sets the Scale selector to that scale so the passive scale tint matches the song.
 - A Practice Song's `scale` is an initial hint, not a lock. The learner can manually change Scale while practicing, and selecting another Practice Song applies that song's scale hint again.
 - A Practice Song with an invalid optional `scale` is invalid. It remains visible as a disabled selector option with a red marker and tooltip error.
-- When playback reaches the final Practice Step and the learner matches it, the Practice Song loops back to the first Practice Step and stays playing.
-- Restart returns to the first Practice Step without changing playback state: playing stays playing, paused stays paused.
+- When playback reaches the final Practice Target in the first Falling Notes implementation, the Practice Song should let the final falling note tail pass through the hit line before stopping instead of disappearing immediately or looping.
+- Restart returns to the first Practice Target without changing playback state: playing stays playing, paused stays paused.
 - Invalid Practice Song files remain visible in the Practice Song selector as disabled options. Disabled song options are visually dimmed, show a small red marker, and expose the parse or validation error in a hover tooltip.
-- The top bar always shows the Practice Song selector. When a valid Practice Song is selected, compact back, play/pause, next, restart, and edit controls appear in the temporary second row.
-- Practice Song back and next controls use adjacent-step icons, not jump-to-start or jump-to-end icons.
-- ArrowLeft and ArrowRight navigate previous and next Practice Steps when a valid Practice Song is selected.
+- The top bar always shows the Practice Song selector. When a valid Practice Song is selected, Guided/Performance mode, fixed BPM, speed percentage, compact back, play/pause, next, restart, score, and edit controls appear in the temporary second row.
+- Practice Song back and next controls use adjacent-target icons, not jump-to-start or jump-to-end icons.
+- ArrowLeft and ArrowRight navigate previous and next Practice Targets when a valid Practice Song is selected.
 - Practice Song controls are hidden when Practice Song is None or when a song file is invalid and disabled.
 - Practice Song examples should include simple technique drills plus playable song imports or sketches.
-- A Practice Song Builder is a step-by-step authoring mode for creating or editing Practice Song JSON by hand from notation-reading practice.
-- A Practice Song Draft is an in-progress Practice Song being authored in the Practice Song Builder.
-- Practice Song Builder captures note sets only. It does not record audio, timing, rhythm, measures, durations, or a performance history.
-- Practice Song Builder is entered from a compact edit-style icon near the Practice Song controls.
-- While Practice Song Builder is inactive, the control uses edit/create wording. While it is active, the control uses save wording.
-- Practice Song Builder should not use record wording or a record-dot icon because it is not audio or timed performance capture.
-- A new Practice Song Draft can be started from the `New Song` option in the Practice Song selector.
-- Typing a new song title creates a pending new-song selection but does not create a draft file by itself.
-- Pressing Enter in the new song title field or pressing the edit/create control starts Practice Song Builder for the pending new-song title.
-- A pending new-song selection shows the create/edit control but does not show practice playback, step navigation, or restart controls.
-- Selecting an existing Practice Song and entering Practice Song Builder loads that song as an editable draft.
-- Editing an existing Practice Song starts Practice Song Builder on the currently selected Practice Step.
-- Creating a new Practice Song starts Practice Song Builder on the first draft step.
-- Entering Practice Song Builder pauses Practice Song playback.
-- While Practice Song Builder is active, the back and next controls navigate draft steps for editing instead of practice playback.
-- ArrowLeft and ArrowRight navigate previous and next draft steps while Practice Song Builder is active.
-- In Practice Song Builder, next moves to the next existing draft step, or appends and selects a new empty draft step when already on the last step.
-- In Practice Song Builder, back never moves before the first draft step.
-- Practice Song Builder v0 has no dedicated delete-step control. Clearing all notes makes a draft step empty, and save validation handles empty steps.
-- Practice Step keyboard shortcuts do not run while focus is inside text inputs, textareas, or dropdown/listbox controls.
-- While Practice Song Builder is active, practice play/pause is hidden because played notes edit the draft step instead of completing Practice Steps.
-- While Practice Song Builder is active, a compact cancel control exits builder mode and discards unsaved draft changes.
-- Canceling Practice Song Builder exits immediately when the draft is unchanged, but asks for confirmation before discarding unsaved draft changes.
-- While Practice Song Builder is active, the current draft step is shown through the same ghosted Practice Preview surfaces used by normal Practice Song mode.
-- Live input remains visually dominant over the draft-step preview while authoring.
-- MIDI input, piano-row input, scale-circle input, and grand-staff input can all edit the current draft step.
-- Playing or clicking a note that is already in the current draft step toggles that note back off.
-- Practice Song Builder saves each draft step as a low-to-high pitch set. Entry order does not change the saved step order.
-- Practice Song Builder allows the current draft step to be empty while editing.
-- Saving a Practice Song Draft removes trailing empty steps, blocks empty steps in the middle, and blocks saving when every step is empty.
-- Saving a Practice Song Draft requires a non-empty trimmed title.
-- Saving a new Practice Song Draft is blocked if the generated title slug is empty.
-- Practice Song Builder saves the current Scale selector value as the Practice Song's optional `scale` hint. If Scale is None, no `scale` field is saved.
-- Editing an existing Practice Song replaces that song's saved `scale` hint with the current Scale selector value on save.
-- New Practice Song Drafts save to `songs/<title-slug>.json`, where the slug is generated from the entered title.
-- Saving a new Practice Song Draft is blocked if the generated song filename already exists.
-- Editing an existing Practice Song can change the saved JSON `title`, but keeps the existing song filename.
-- Exiting Practice Song Builder after edits saves the Practice Song Draft to a local JSON file in the root `songs/` folder.
-- Practice Song Builder saves song files through an Electron main-process bridge. The renderer does not write to the filesystem directly.
-- After saving a Practice Song Draft, the in-app Practice Song list refreshes from disk so new and edited songs are available without restarting the app.
-- Saving a Practice Song Draft exits Practice Song Builder, selects the saved song, and returns to normal paused Practice Song mode.
-- Practice Song Builder save errors are shown in the middle-center panel near the builder title and step count. Save validation should stay non-modal except for discard confirmation.
+- Built-in fun examples should prefer public-domain melodies or custom beginner arrangements with game/cartoon-adjacent energy instead of bundling copyrighted game or television themes.
+- Built-in technique drills should cover common beginner practice goals: five-finger movement, evenness, slow metronome work, broken chords/arpeggios, hand independence, interval jumps, and simple chord progressions.
+- The Song selector should include a generated `Random Scale Chords` Practice Song option. It should derive chords from the current Scale selector, default to C major when Scale is None, randomize its chord order each time playback starts, stay compatible with Falling Notes, Chord Display, Staff Notation, and Piano Keyboard preview surfaces, and remain an in-memory generated song rather than a saved fixture.
+- A new Practice Song can still be started from the `New Song` option in the Song selector.
+- Typing a new song title creates a pending new-song selection but does not create a file by itself.
+- A pending new-song selection shows the create/edit control but does not show practice playback, target navigation, or restart controls.
+- Song authoring should save MusicXML through an Electron main-process bridge. The renderer does not write to the filesystem directly.
+- After saving a Practice Song, the in-app Practice Song list refreshes from disk so new and edited songs are available without restarting the app.
+- Saving a Practice Song exits authoring, selects the saved song, and returns to normal paused Practice Song mode.
+- Save errors are shown in the middle-center panel near the builder title and target count. Save validation should stay non-modal except for discard confirmation.
 - Colors are stable absolute pitch-class colors. A note keeps the same color across piano keys and selected scales.
 - Selected scale affects highlighting, not the pitch-class color mapping.
 - Selected scale is background structure only. It lightly distinguishes notes that belong to the scale from notes outside it.
@@ -173,16 +199,40 @@ Playing notes directly through the app's visual surfaces instead of the physical
 _Avoid_: click mode, virtual keyboard mode
 
 **Practice Song**:
-An ordered set of simple practice targets loaded from a local song file.
+Readable notation plus timed practice targets loaded from a local song file.
 _Avoid_: song lesson, exercise
 
-**Practice Step**:
-One expected note, chord, or note set inside a Practice Song.
-_Avoid_: line, measure, bar
+**Practice Target**:
+One timed note onset, chord onset, or note set derived from MusicXML for guided or scored practice.
+_Avoid_: Practice Step
 
-**Practice Song Builder**:
-A step-by-step authoring mode for creating or editing Practice Song JSON from learner-entered note targets.
-_Avoid_: recording, audio recording, performance capture
+**Chord Group**:
+A named chord subset inside a Practice Target, such as the C3/E3/G3 notes inside `Cmaj + D3`.
+_Avoid_: chord target when the target also has extra notes
+
+**Piano Part**:
+The single MusicXML part PoleskiPiano reads for a Practice Song, with up to two staves for piano notation.
+_Avoid_: left-hand part, right-hand part
+
+**Falling Notes View**:
+A full-width middle practice surface that shows timed notes descending toward the Piano Keyboard.
+_Avoid_: fourth panel
+
+**Panel Manager**:
+The middle-grid layout controller that turns panels on or off according to each panel's declared size.
+_Avoid_: falling-notes mode
+
+**Guided Practice**:
+A Practice Song behavior where the song waits at each target until the learner plays it correctly.
+_Avoid_: wait mode
+
+**Performance Practice**:
+A Practice Song behavior where the song clock keeps running and learner input is scored against timing targets.
+_Avoid_: continuous mode
+
+**Notation Builder**:
+A small authoring mode for creating beginner MusicXML Practice Songs by editing notes, durations, rests, and measures.
+_Avoid_: full notation editor, XML editor
 
 **Practice Song Draft**:
 An in-progress Practice Song being authored before it is saved as a local song file.
@@ -194,6 +244,7 @@ _Avoid_: recording, take, performance
 - Middle left: selected scale/circle-style pitch map.
 - Middle center: live notes/chord being played.
 - Middle right: traditional grand staff with treble and bass clefs.
+- Planned Falling Notes View: full-width replacement for the three middle panels when Scale Wheel, Chord Display, and Staff Notation are hidden.
 - Bottom: 37-key keyboard showing note labels, colors, scale membership, and pressed state.
 
 ## Current boundary

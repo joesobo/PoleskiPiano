@@ -13,6 +13,7 @@ import {
   type ScaleMode,
   type SelectedScale,
 } from "../music/scales";
+import type { PerformanceScore, PracticeRunMode } from "../music/fallingNotes";
 import type { PracticeSongOption } from "../music/practiceSongs";
 
 export type ThemeMode = "dark" | "light";
@@ -40,6 +41,11 @@ interface TopBarProps {
   hasPendingPracticeSong: boolean;
   pendingPracticeSongTitle: string;
   isPracticePlaying: boolean;
+  practiceRunMode: PracticeRunMode;
+  practiceTempoBpm: number | null;
+  practiceSpeedPercent: number;
+  practiceSpeedStepPercent: number;
+  performanceScore: PerformanceScore | null;
   isPracticeSongBuilderActive: boolean;
   practiceSongBuilderTitle: string | null;
   onScaleChange: (scale: SelectedScale | null) => void;
@@ -55,6 +61,8 @@ interface TopBarProps {
   onPracticeBack: () => void;
   onPracticeNext: () => void;
   onPracticeRestart: () => void;
+  onPracticeRunModeChange: (runMode: PracticeRunMode) => void;
+  onPracticeSpeedPercentChange: (speedPercent: number) => void;
   onPracticePlayingChange: (isPlaying: boolean) => void;
 }
 
@@ -69,6 +77,11 @@ export function TopBar({
   hasPendingPracticeSong,
   pendingPracticeSongTitle,
   isPracticePlaying,
+  practiceRunMode,
+  practiceTempoBpm,
+  practiceSpeedPercent,
+  practiceSpeedStepPercent,
+  performanceScore,
   isPracticeSongBuilderActive,
   practiceSongBuilderTitle,
   onScaleChange,
@@ -84,6 +97,8 @@ export function TopBar({
   onPracticeBack,
   onPracticeNext,
   onPracticeRestart,
+  onPracticeRunModeChange,
+  onPracticeSpeedPercentChange,
   onPracticePlayingChange,
 }: TopBarProps): React.ReactElement {
   const midiLabel =
@@ -156,10 +171,17 @@ export function TopBar({
             ) : hasSelectedPracticeSong ? (
               <PracticeSongControls
                 isPracticePlaying={isPracticePlaying}
+                runMode={practiceRunMode}
+                tempoBpm={practiceTempoBpm}
+                speedPercent={practiceSpeedPercent}
+                speedStepPercent={practiceSpeedStepPercent}
+                performanceScore={performanceScore}
                 onBack={onPracticeBack}
                 onNext={onPracticeNext}
                 onRestart={onPracticeRestart}
                 onBuilderStart={onPracticeSongBuilderStart}
+                onRunModeChange={onPracticeRunModeChange}
+                onSpeedPercentChange={onPracticeSpeedPercentChange}
                 onPlayingChange={onPracticePlayingChange}
               />
             ) : hasPendingPracticeSong ? (
@@ -306,28 +328,100 @@ function PracticeSongSelect({
 
 interface PracticeSongControlsProps {
   isPracticePlaying: boolean;
+  runMode: PracticeRunMode;
+  tempoBpm: number | null;
+  speedPercent: number;
+  speedStepPercent: number;
+  performanceScore: PerformanceScore | null;
   onBack: () => void;
   onNext: () => void;
   onRestart: () => void;
   onBuilderStart: () => void;
+  onRunModeChange: (runMode: PracticeRunMode) => void;
+  onSpeedPercentChange: (speedPercent: number) => void;
   onPlayingChange: (isPlaying: boolean) => void;
 }
 
 function PracticeSongControls({
   isPracticePlaying,
+  runMode,
+  tempoBpm,
+  speedPercent,
+  speedStepPercent,
+  performanceScore,
   onBack,
   onNext,
   onRestart,
   onBuilderStart,
+  onRunModeChange,
+  onSpeedPercentChange,
   onPlayingChange,
 }: PracticeSongControlsProps): React.ReactElement {
   return (
     <div className="practice-song-controls" aria-label="Practice song controls">
+      <div className="practice-mode-control" aria-label="Practice mode">
+        <button
+          className={[
+            "practice-mode-button",
+            runMode === "guided" ? "is-active-practice-mode" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+          type="button"
+          aria-pressed={runMode === "guided"}
+          onClick={() => onRunModeChange("guided")}
+        >
+          Guided Practice
+        </button>
+        <button
+          className={[
+            "practice-mode-button",
+            runMode === "performance" ? "is-active-practice-mode" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+          type="button"
+          aria-pressed={runMode === "performance"}
+          onClick={() => onRunModeChange("performance")}
+        >
+          Performance Practice
+        </button>
+      </div>
+      <span className="practice-tempo-readout">
+        {tempoBpm ? `${tempoBpm} BPM` : "BPM"}
+      </span>
+      <div className="practice-speed-control" aria-label="Practice speed">
+        <button
+          className="practice-speed-button"
+          type="button"
+          aria-label="Decrease Practice Speed"
+          title="Slower"
+          onClick={() => onSpeedPercentChange(speedPercent - speedStepPercent)}
+        >
+          -
+        </button>
+        <span className="practice-speed-value">{speedPercent}%</span>
+        <button
+          className="practice-speed-button"
+          type="button"
+          aria-label="Increase Practice Speed"
+          title="Faster"
+          onClick={() => onSpeedPercentChange(speedPercent + speedStepPercent)}
+        >
+          +
+        </button>
+      </div>
+      {runMode === "performance" && performanceScore ? (
+        <span className="practice-score-readout">
+          {performanceScore.hits}/{performanceScore.total} ·{" "}
+          {performanceScore.percent}%
+        </span>
+      ) : null}
       <button
         className="practice-control-button"
         type="button"
-        aria-label="Previous Practice Step"
-        title="Previous step"
+        aria-label="Previous Practice Target"
+        title="Previous target"
         onClick={onBack}
       >
         <span aria-hidden="true">{PRACTICE_SONG_CONTROL_ICONS.previousStep}</span>
@@ -348,8 +442,8 @@ function PracticeSongControls({
       <button
         className="practice-control-button"
         type="button"
-        aria-label="Next Practice Step"
-        title="Next step"
+        aria-label="Next Practice Target"
+        title="Next target"
         onClick={onNext}
       >
         <span aria-hidden="true">{PRACTICE_SONG_CONTROL_ICONS.nextStep}</span>
@@ -410,12 +504,12 @@ function PracticeSongBuilderControls({
   onCancel,
 }: PracticeSongBuilderControlsProps): React.ReactElement {
   return (
-    <div className="practice-song-controls" aria-label="Practice song builder">
+    <div className="practice-song-controls" aria-label="Notation builder">
       <button
         className="practice-control-button"
         type="button"
-        aria-label="Previous Draft Step"
-        title="Previous step"
+        aria-label="Previous Draft Target"
+        title="Previous target"
         onClick={onBack}
       >
         <span aria-hidden="true">{PRACTICE_SONG_CONTROL_ICONS.previousStep}</span>
@@ -423,8 +517,8 @@ function PracticeSongBuilderControls({
       <button
         className="practice-control-button"
         type="button"
-        aria-label="Next Draft Step"
-        title="Next step"
+        aria-label="Next Draft Target"
+        title="Next target"
         onClick={onNext}
       >
         <span aria-hidden="true">{PRACTICE_SONG_CONTROL_ICONS.nextStep}</span>
@@ -441,7 +535,7 @@ function PracticeSongBuilderControls({
       <button
         className="practice-control-button"
         type="button"
-        aria-label="Cancel Practice Song Builder"
+        aria-label="Cancel Notation Builder"
         title="Cancel"
         onClick={onCancel}
       >

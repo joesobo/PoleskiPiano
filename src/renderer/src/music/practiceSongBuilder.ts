@@ -4,7 +4,11 @@ import {
   midiToNoteName,
   midiToPitchClass,
 } from "./notes";
-import type { PracticeSong, PracticeStepNote } from "./practiceSongs";
+import {
+  createPracticeSongMusicXml,
+  type PracticeSong,
+  type PracticeTargetNote,
+} from "./practiceSongs";
 import type { SelectedScale } from "./scales";
 
 export type PracticeSongDraftSource = "new" | "existing";
@@ -14,8 +18,8 @@ export interface PracticeSongDraft {
   path: string | null;
   originalTitle: string;
   title: string;
-  steps: number[][];
-  stepIndex: number;
+  targets: number[][];
+  targetIndex: number;
   isDirty: boolean;
   error: string | null;
 }
@@ -23,12 +27,8 @@ export interface PracticeSongDraft {
 export interface PracticeSongDraftSaveRequest {
   path: string;
   overwrite: boolean;
-  stepIndex: number;
-  song: {
-    title: string;
-    scale?: string;
-    steps: string[];
-  };
+  targetIndex: number;
+  contents: string;
 }
 
 export type PracticeSongDraftSaveResult =
@@ -43,8 +43,8 @@ export function createNewPracticeSongDraft(title: string): PracticeSongDraft {
     path: null,
     originalTitle: trimmedTitle,
     title: trimmedTitle,
-    steps: [[]],
-    stepIndex: 0,
+    targets: [[]],
+    targetIndex: 0,
     isDirty: false,
     error: null,
   };
@@ -52,15 +52,17 @@ export function createNewPracticeSongDraft(title: string): PracticeSongDraft {
 
 export function createPracticeSongDraftFromSong(
   song: PracticeSong,
-  stepIndex: number,
+  targetIndex: number,
 ): PracticeSongDraft {
   return {
     source: "existing",
     path: song.id,
     originalTitle: song.title,
     title: song.title,
-    steps: song.steps.map((step) => normalizeStepMidiNotes(step.midiNotes)),
-    stepIndex: clampStepIndex(stepIndex, song.steps.length),
+    targets: song.targets.map((target) =>
+      normalizeTargetMidiNotes(target.midiNotes),
+    ),
+    targetIndex: clampTargetIndex(targetIndex, song.targets.length),
     isDirty: false,
     error: null,
   };
@@ -86,48 +88,48 @@ export function togglePracticeSongDraftMidi(
     return draft;
   }
 
-  const steps = draft.steps.map((step, index) => {
-    if (index !== draft.stepIndex) {
-      return step;
+  const targets = draft.targets.map((target, index) => {
+    if (index !== draft.targetIndex) {
+      return target;
     }
 
-    return step.includes(midi)
-      ? step.filter((stepMidi) => stepMidi !== midi)
-      : normalizeStepMidiNotes([...step, midi]);
+    return target.includes(midi)
+      ? target.filter((targetMidi) => targetMidi !== midi)
+      : normalizeTargetMidiNotes([...target, midi]);
   });
 
   return {
     ...draft,
-    steps,
+    targets,
     isDirty: true,
     error: null,
   };
 }
 
-export function movePracticeSongDraftStep(
+export function movePracticeSongDraftTarget(
   draft: PracticeSongDraft,
   direction: "previous" | "next",
 ): PracticeSongDraft {
   if (direction === "previous") {
     return {
       ...draft,
-      stepIndex: Math.max(0, draft.stepIndex - 1),
+      targetIndex: Math.max(0, draft.targetIndex - 1),
       error: null,
     };
   }
 
-  if (draft.stepIndex < draft.steps.length - 1) {
+  if (draft.targetIndex < draft.targets.length - 1) {
     return {
       ...draft,
-      stepIndex: draft.stepIndex + 1,
+      targetIndex: draft.targetIndex + 1,
       error: null,
     };
   }
 
   return {
     ...draft,
-    steps: [...draft.steps, []],
-    stepIndex: draft.steps.length,
+    targets: [...draft.targets, []],
+    targetIndex: draft.targets.length,
     isDirty: true,
     error: null,
   };
@@ -145,8 +147,8 @@ export function setPracticeSongDraftError(
 
 export function getPracticeSongDraftCurrentNotes(
   draft: PracticeSongDraft,
-): PracticeStepNote[] {
-  return (draft.steps[draft.stepIndex] ?? []).map((midi) => ({
+): PracticeTargetNote[] {
+  return (draft.targets[draft.targetIndex] ?? []).map((midi) => ({
     midi,
     label: midiToNoteName(midi),
     pitchClass: midiToPitchClass(midi),
@@ -164,22 +166,22 @@ export function preparePracticeSongDraftForSave(
     return { ok: false, error: "Add a song title" };
   }
 
-  const steps = trimTrailingEmptySteps(draft.steps);
+  const targets = trimTrailingEmptyTargets(draft.targets);
 
-  if (steps.length === 0) {
-    return { ok: false, error: "Add at least one step" };
+  if (targets.length === 0) {
+    return { ok: false, error: "Add at least one target" };
   }
 
-  const emptyStepIndex = steps.findIndex((step) => step.length === 0);
+  const emptyTargetIndex = targets.findIndex((target) => target.length === 0);
 
-  if (emptyStepIndex >= 0) {
-    return { ok: false, error: `Step ${emptyStepIndex + 1} is empty` };
+  if (emptyTargetIndex >= 0) {
+    return { ok: false, error: `Target ${emptyTargetIndex + 1} is empty` };
   }
 
   const path =
     draft.source === "existing" && draft.path
       ? draft.path
-      : `songs/${slugifyPracticeSongTitle(title)}.json`;
+      : `songs/${slugifyPracticeSongTitle(title)}.musicxml`;
 
   if (draft.source === "new") {
     const slug = slugifyPracticeSongTitle(title);
@@ -193,29 +195,25 @@ export function preparePracticeSongDraftForSave(
     }
   }
 
-  const song: PracticeSongDraftSaveRequest["song"] = {
-    title,
-    steps: steps.map(serializePracticeSongDraftStep),
-  };
-  const scaleValue = serializePracticeSongScale(scale);
-
-  if (scaleValue) {
-    song.scale = scaleValue;
-  }
-
   return {
     ok: true,
     request: {
       path,
       overwrite: draft.source === "existing",
-      stepIndex: Math.min(draft.stepIndex, steps.length - 1),
-      song,
+      targetIndex: Math.min(draft.targetIndex, targets.length - 1),
+      contents: createPracticeSongMusicXml({
+        title,
+        scale,
+        targets: targets.map((target) => ({
+          notes: normalizeTargetMidiNotes(target).map((midi) => ({ midi })),
+        })),
+      }),
     },
   };
 }
 
-export function serializePracticeSongDraftStep(midiNotes: number[]): string {
-  return normalizeStepMidiNotes(midiNotes).map(midiToNoteName).join(" + ");
+export function serializePracticeSongDraftTarget(midiNotes: number[]): string {
+  return normalizeTargetMidiNotes(midiNotes).map(midiToNoteName).join(" + ");
 }
 
 export function slugifyPracticeSongTitle(title: string): string {
@@ -227,24 +225,20 @@ export function slugifyPracticeSongTitle(title: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-function normalizeStepMidiNotes(midiNotes: Iterable<number>): number[] {
+function normalizeTargetMidiNotes(midiNotes: Iterable<number>): number[] {
   return [...new Set(midiNotes)].sort((left, right) => left - right);
 }
 
-function trimTrailingEmptySteps(steps: number[][]): number[][] {
-  let lastNonEmptyIndex = steps.length - 1;
+function trimTrailingEmptyTargets(targets: number[][]): number[][] {
+  let lastNonEmptyIndex = targets.length - 1;
 
-  while (lastNonEmptyIndex >= 0 && steps[lastNonEmptyIndex].length === 0) {
+  while (lastNonEmptyIndex >= 0 && targets[lastNonEmptyIndex].length === 0) {
     lastNonEmptyIndex -= 1;
   }
 
-  return steps.slice(0, lastNonEmptyIndex + 1);
+  return targets.slice(0, lastNonEmptyIndex + 1);
 }
 
-function serializePracticeSongScale(scale: SelectedScale | null): string | null {
-  return scale ? `${scale.tonic} ${scale.mode}` : null;
-}
-
-function clampStepIndex(stepIndex: number, stepCount: number): number {
-  return Math.max(0, Math.min(stepIndex, Math.max(0, stepCount - 1)));
+function clampTargetIndex(targetIndex: number, targetCount: number): number {
+  return Math.max(0, Math.min(targetIndex, Math.max(0, targetCount - 1)));
 }

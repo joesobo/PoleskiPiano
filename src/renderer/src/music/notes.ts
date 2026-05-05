@@ -38,8 +38,33 @@ const BLACK_PITCH_CLASSES = new Set<PitchClass>([
 ]);
 
 const PITCH_CLASS_BY_NAME = new Map<string, PitchClass>(
-  PITCH_CLASSES.map((pitchClass) => [pitchClass, pitchClass]),
+  [
+    ...PITCH_CLASSES.map((pitchClass) => [pitchClass, pitchClass] as const),
+    ["Db", "C#"],
+    ["D♭", "C#"],
+    ["Eb", "D#"],
+    ["E♭", "D#"],
+    ["Gb", "F#"],
+    ["G♭", "F#"],
+    ["Ab", "G#"],
+    ["A♭", "G#"],
+    ["Bb", "A#"],
+    ["B♭", "A#"],
+  ],
 );
+const FLAT_ALIAS_BY_PITCH_CLASS: Partial<Record<PitchClass, string>> = {
+  "C#": "D♭",
+  "D#": "E♭",
+  "F#": "G♭",
+  "G#": "A♭",
+  "A#": "B♭",
+};
+
+export interface NoteDisplayParts {
+  primary: string;
+  enharmonic: string | null;
+  octave: string | null;
+}
 
 export function midiToPitchClass(midi: number): PitchClass {
   return PITCH_CLASSES[((midi % 12) + 12) % 12];
@@ -58,7 +83,7 @@ export function midiToNoteName(midi: number): string {
 }
 
 export function noteNameToMidi(noteName: string): number {
-  const match = /^([A-G]#?)(-?\d+)$/.exec(noteName);
+  const match = /^([A-G](?:#|b|♭)?)(-?\d+)$/.exec(noteName);
   if (!match) {
     throw new Error(`Invalid note name: ${noteName}`);
   }
@@ -69,6 +94,27 @@ export function noteNameToMidi(noteName: string): number {
   }
 
   return (Number(match[2]) + 1) * 12 + pitchClassToSemitone(pitchClass);
+}
+
+export function getNoteDisplayParts(noteName: string): NoteDisplayParts {
+  const match = /^([A-G](?:#|b|♭)?)(-?\d+)?$/.exec(noteName);
+
+  if (!match) {
+    return {
+      primary: noteName,
+      enharmonic: null,
+      octave: null,
+    };
+  }
+
+  const pitchClass = PITCH_CLASS_BY_NAME.get(match[1]);
+  const primary = pitchClass ?? match[1];
+
+  return {
+    primary,
+    enharmonic: pitchClass ? FLAT_ALIAS_BY_PITCH_CLASS[pitchClass] ?? null : null,
+    octave: match[2] ?? null,
+  };
 }
 
 export function mapMidiInputToKeyboardMidi(midi: number): number {
