@@ -15,7 +15,6 @@ import {
 } from "../shared/panels";
 import {
   createApplicationMenuTemplate,
-  type ThemeMode,
 } from "./appMenu";
 import {
   listPracticeSongFiles,
@@ -53,17 +52,10 @@ function configureApplicationMenu(): void {
       createApplicationMenuTemplate({
         isMac,
         panelVisibility: currentPanelVisibility,
-        onToggleAppearance: sendThemeToggle,
         onTogglePanel: sendPanelToggle,
       }),
     ),
   );
-}
-
-function configureThemeMenuUpdates(): void {
-  ipcMain.on("theme:mode-changed", (_event, themeMode: ThemeMode) => {
-    updateAppearanceMenuLabel(themeMode);
-  });
 }
 
 function configurePanelMenuUpdates(): void {
@@ -83,24 +75,9 @@ function configurePracticeSongFiles(): void {
   );
 }
 
-function sendThemeToggle(): void {
-  for (const window of BrowserWindow.getAllWindows()) {
-    window.webContents.send("theme:toggle");
-  }
-}
-
 function sendPanelToggle(panelId: PanelId): void {
   for (const window of BrowserWindow.getAllWindows()) {
     window.webContents.send("panel:toggle", panelId);
-  }
-}
-
-function updateAppearanceMenuLabel(themeMode: ThemeMode): void {
-  const menuItem = Menu.getApplicationMenu()?.getMenuItemById("appearance-toggle");
-
-  if (menuItem) {
-    menuItem.label =
-      themeMode === "dark" ? "Use Light Appearance" : "Use Dark Appearance";
   }
 }
 
@@ -164,7 +141,6 @@ app.whenReady().then(() => {
   }
 
   configureApplicationMenu();
-  configureThemeMenuUpdates();
   configurePanelMenuUpdates();
   configurePracticeSongFiles();
   configureMidiPermissions();

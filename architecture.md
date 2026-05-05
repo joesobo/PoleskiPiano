@@ -52,14 +52,14 @@ Living file map for PoleskiPiano. Update before committing whenever files are ad
 
 ## src/main
 
-- `src/main/appMenu.ts` - Pure native application menu template builder, including appearance and `View > Panels` menu items.
+- `src/main/appMenu.ts` - Pure native application menu template builder, including `View > Panels` menu items.
 - `src/main/appMenu.test.ts` - Native menu regression tests for labeled menu rows and panel checkbox items.
-- `src/main/index.ts` - Electron main process entrypoint; sets the native app name to `PoleskiPiano`, creates the native window with the app icon, permits Web MIDI plus launch-time audio start, owns the native app menu including View appearance switching, updates the appearance menu label from renderer theme state, and wires root `songs/` list/save IPC for Practice Song authoring.
+- `src/main/index.ts` - Electron main process entrypoint; sets the native app name to `PoleskiPiano`, creates the native window with the app icon, permits Web MIDI plus launch-time audio start, owns the native app menu panel toggles, and wires root `songs/` list/save IPC for Practice Song authoring.
 - `src/main/practiceSongFiles.ts` - Node-side Practice Song file service for listing/saving root `songs/*.musicxml`, validating IPC save payloads, normalizing filenames, and preventing path traversal.
 
 ## src/preload
 
-- `src/preload/index.ts` - Electron preload bridge exposing app/platform metadata, native theme-toggle menu events, renderer-to-main theme and panel visibility updates, native panel-toggle events, and Practice Song list/save IPC wrappers.
+- `src/preload/index.ts` - Electron preload bridge exposing app/platform metadata, native panel-toggle events, renderer-to-main panel visibility updates, and Practice Song list/save IPC wrappers.
 
 ## src/renderer
 
@@ -73,9 +73,10 @@ Living file map for PoleskiPiano. Update before committing whenever files are ad
 
 ## src/renderer/src
 
-- `src/renderer/src/App.tsx` - Main practice-surface state container; coordinates MIDI and on-screen input sources, automatic audio, optional scale, mutually-exclusive chord preview and MusicXML Practice Song selection, panel visibility/context menu state, current draft authoring, Guided/Performance falling-note playback state, Practice Song scoring, arrow-key target navigation, press-ordered live chord, staff, Chord Preview ghost targets, Falling Notes, and keyboard UI.
+- `src/renderer/src/App.tsx` - Main practice-surface state container; coordinates renderer-owned theme state, MIDI and on-screen input sources, automatic audio, optional scale, mutually-exclusive chord preview and MusicXML Practice Song selection, panel visibility/context menu state, current draft authoring, Guided/Performance falling-note playback state, Practice Song scoring, arrow-key target navigation, press-ordered live chord, staff, Chord Preview ghost targets, Falling Notes, and keyboard UI.
 - `src/renderer/src/main.tsx` - React renderer entrypoint.
 - `src/renderer/src/styles.css` - Flexoki-inspired light/dark app theming, layout, staff, and piano keyboard CSS.
+- `src/renderer/src/themeStyles.test.ts` - Electron-backed browser regression test that verifies computed practice-panel background colors change from dark to light after a theme toggle.
 - `src/renderer/src/panelManager.ts` - Middle-grid panel visibility reducer that applies declared panel sizes, remembered slots, and recency-based eviction.
 - `src/renderer/src/panelManager.test.ts` - Panel Manager visibility, Falling Notes eviction, and remembered-slot tests.
 - `src/renderer/src/styles.test.ts` - CSS regression tests for piano key stacking, theme toggle styles, dropdown sizing, panel context menu styles, and stable top-bar practice mode layout.
@@ -94,7 +95,7 @@ Living file map for PoleskiPiano. Update before committing whenever files are ad
 - `src/renderer/src/components/StaffNotation.test.tsx` - Staff note-head, stacking, and hover-target rendering tests.
 - `src/renderer/src/components/StaffNotation.tsx` - Playable SVG grand staff with treble/bass clefs, stacked ghosted chord preview notes, compact colored active-note groups, hover targets, and ledger lines.
 - `src/renderer/src/components/TopBar.test.ts` - Top bar chord preview visibility, chord preview option state, practice song option state, Guided/Performance control rendering, and practice-control icon tests.
-- `src/renderer/src/components/TopBar.tsx` - Compact MIDI/audio signal cluster, always-visible Scale/Chord Preview/Song selector row, selection-only Practice Song selector with a `New Song` option, pending-title composer in the temporary second row, Guided/Performance mode, BPM, speed, score, and temporary second-row practice/builder icon controls.
+- `src/renderer/src/components/TopBar.tsx` - Compact MIDI/audio/theme signal cluster, always-visible Scale/Chord Preview/Song selector row, selection-only Practice Song selector with a `New Song` option, pending-title composer in the temporary second row, Guided/Performance mode, BPM, speed, score, and temporary second-row practice/builder icon controls.
 
 ## src/renderer/src/music
 
@@ -133,7 +134,7 @@ Living file map for PoleskiPiano. Update before committing whenever files are ad
 
 ## src/renderer/src/types
 
-- `src/renderer/src/types/electron-api.d.ts` - Type declarations for the preload-exposed `window.poleskiPiano` bridge, native theme-toggle and panel-toggle callbacks, panel visibility updates, and Practice Song list/save methods.
+- `src/renderer/src/types/electron-api.d.ts` - Type declarations for the preload-exposed `window.poleskiPiano` bridge, native panel-toggle callbacks, panel visibility updates, and Practice Song list/save methods.
 - `src/renderer/src/types/web-midi.d.ts` - Minimal Web MIDI type declarations for Chromium/Electron renderer code.
 
 ## src/shared

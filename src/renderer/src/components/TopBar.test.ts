@@ -4,9 +4,11 @@ import { renderToStaticMarkup } from "react-dom/server";
 import {
   getChordPreviewOptionClassName,
   getChordPreviewSelectedClassName,
+  getNextThemeMode,
   getPracticeSongOptionClassName,
   PENDING_PRACTICE_SONG_ID,
   PRACTICE_SONG_CONTROL_ICONS,
+  THEME_MODE_ICONS,
   TopBar,
 } from "./TopBar";
 
@@ -50,6 +52,7 @@ function topBarProps(
     performanceScore: { hits: 0, total: 0, percent: 0 },
     isPracticeSongBuilderActive: false,
     practiceSongBuilderTitle: null,
+    themeMode: "dark" as const,
     onScaleChange: () => undefined,
     onChordPreviewChange: () => undefined,
     onPracticeSongChange: () => undefined,
@@ -66,6 +69,7 @@ function topBarProps(
     onPracticeRunModeChange: () => undefined,
     onPracticeSpeedPercentChange: () => undefined,
     onPracticePlayingChange: () => undefined,
+    onThemeModeChange: () => undefined,
     ...overrides,
   };
 }
@@ -94,6 +98,16 @@ describe("TopBar chord preview selected value", () => {
 });
 
 describe("TopBar layout", () => {
+  it("renders the theme toggle in the top signal cluster", () => {
+    const html = renderToStaticMarkup(
+      createElement(TopBar, topBarProps()),
+    );
+
+    expect(html).toContain("theme-toggle-button");
+    expect(html).toContain("Use Light Appearance");
+    expect(html).toContain(THEME_MODE_ICONS.light);
+  });
+
   it("keeps Chord Preview visible when a Practice Song is selected", () => {
     const html = renderToStaticMarkup(
       createElement(TopBar, topBarProps()),
@@ -133,6 +147,13 @@ describe("TopBar layout", () => {
     expect(html).toContain("Performance Practice");
     expect(html).toContain("18/24");
     expect(html).toContain("75%");
+  });
+});
+
+describe("TopBar theme modes", () => {
+  it("flips directly between dark and light appearances", () => {
+    expect(getNextThemeMode("dark")).toBe("light");
+    expect(getNextThemeMode("light")).toBe("dark");
   });
 });
 

@@ -10,8 +10,6 @@ declare global {
         chrome: string;
         electron: string;
       };
-      onThemeToggle?: (callback: () => void) => () => void;
-      setThemeMode?: (themeMode: "dark" | "light") => void;
       onPanelToggle?: (callback: (panelId: PanelId) => void) => () => void;
       setPanelVisibility?: (panelVisibility: PanelVisibility) => void;
       listPracticeSongs?: () => Promise<Record<string, string>>;

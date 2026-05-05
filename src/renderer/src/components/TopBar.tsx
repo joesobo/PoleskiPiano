@@ -29,6 +29,14 @@ export const PRACTICE_SONG_CONTROL_ICONS = {
   save: "✓",
   cancel: "×",
 } as const;
+export const THEME_MODE_ICONS = {
+  light: "☀",
+  dark: "☾",
+} as const;
+
+export function getNextThemeMode(themeMode: ThemeMode): ThemeMode {
+  return themeMode === "dark" ? "light" : "dark";
+}
 
 interface TopBarProps {
   midiStatus: MidiStatus;
@@ -48,6 +56,7 @@ interface TopBarProps {
   performanceScore: PerformanceScore | null;
   isPracticeSongBuilderActive: boolean;
   practiceSongBuilderTitle: string | null;
+  themeMode: ThemeMode;
   onScaleChange: (scale: SelectedScale | null) => void;
   onChordPreviewChange: (preview: ChordPreview | null) => void;
   onPracticeSongChange: (practiceSongId: string) => void;
@@ -64,6 +73,7 @@ interface TopBarProps {
   onPracticeRunModeChange: (runMode: PracticeRunMode) => void;
   onPracticeSpeedPercentChange: (speedPercent: number) => void;
   onPracticePlayingChange: (isPlaying: boolean) => void;
+  onThemeModeChange: (themeMode: ThemeMode) => void;
 }
 
 export function TopBar({
@@ -84,6 +94,7 @@ export function TopBar({
   performanceScore,
   isPracticeSongBuilderActive,
   practiceSongBuilderTitle,
+  themeMode,
   onScaleChange,
   onChordPreviewChange,
   onPracticeSongChange,
@@ -100,6 +111,7 @@ export function TopBar({
   onPracticeRunModeChange,
   onPracticeSpeedPercentChange,
   onPracticePlayingChange,
+  onThemeModeChange,
 }: TopBarProps): React.ReactElement {
   const midiLabel =
     midiStatus.selectedInputName ??
@@ -118,6 +130,10 @@ export function TopBar({
         <div className="level-meter" aria-label="Audio level">
           <span style={{ inlineSize: `${Math.round(audioLevel * 100)}%` }} />
         </div>
+        <ThemeToggleButton
+          themeMode={themeMode}
+          onThemeModeChange={onThemeModeChange}
+        />
       </div>
 
       <div className="top-bar-content">
@@ -632,6 +648,32 @@ function PracticeSongTitleField({
 
 function StatusDot({ tone }: { tone: "good" | "warn" }): React.ReactElement {
   return <span className={`status-dot status-dot-${tone}`} />;
+}
+
+interface ThemeToggleButtonProps {
+  themeMode: ThemeMode;
+  onThemeModeChange: (themeMode: ThemeMode) => void;
+}
+
+function ThemeToggleButton({
+  themeMode,
+  onThemeModeChange,
+}: ThemeToggleButtonProps): React.ReactElement {
+  const nextThemeMode = getNextThemeMode(themeMode);
+  const label =
+    nextThemeMode === "light" ? "Use Light Appearance" : "Use Dark Appearance";
+
+  return (
+    <button
+      className="theme-toggle-button"
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={() => onThemeModeChange(nextThemeMode)}
+    >
+      <span aria-hidden="true">{THEME_MODE_ICONS[nextThemeMode]}</span>
+    </button>
+  );
 }
 
 interface ScaleSelectProps {

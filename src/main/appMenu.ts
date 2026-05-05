@@ -5,19 +5,15 @@ import {
   type PanelVisibility,
 } from "../shared/panels";
 
-export type ThemeMode = "dark" | "light";
-
 export interface ApplicationMenuOptions {
   isMac: boolean;
   panelVisibility: PanelVisibility;
-  onToggleAppearance: () => void;
   onTogglePanel: (panelId: PanelId) => void;
 }
 
 export function createApplicationMenuTemplate({
   isMac,
   panelVisibility,
-  onToggleAppearance,
   onTogglePanel,
 }: ApplicationMenuOptions): MenuItemConstructorOptions[] {
   const appMenu: MenuItemConstructorOptions[] = isMac
@@ -73,13 +69,6 @@ export function createApplicationMenuTemplate({
     }),
   );
   const viewSubmenu: MenuItemConstructorOptions[] = [
-    {
-      id: "appearance-toggle",
-      label: "Use Light Appearance",
-      accelerator: "CmdOrCtrl+Shift+L",
-      click: onToggleAppearance,
-    },
-    { type: "separator" },
     {
       label: "Panels",
       submenu: panelSubmenu,

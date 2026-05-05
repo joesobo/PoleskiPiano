@@ -8,7 +8,6 @@ describe("application menu", () => {
     const template = createApplicationMenuTemplate({
       isMac: true,
       panelVisibility: DEFAULT_PANEL_VISIBILITY,
-      onToggleAppearance: () => undefined,
       onTogglePanel: () => undefined,
     });
 
@@ -26,7 +25,6 @@ describe("application menu", () => {
     const template = createApplicationMenuTemplate({
       isMac: false,
       panelVisibility: DEFAULT_PANEL_VISIBILITY,
-      onToggleAppearance: () => undefined,
       onTogglePanel: () => undefined,
     });
     const viewMenu = template.find((item) => item.label === "View");
@@ -46,6 +44,24 @@ describe("application menu", () => {
       "checkbox",
       "checkbox",
     ]);
+  });
+
+  it("keeps appearance switching out of the native View menu", () => {
+    const template = createApplicationMenuTemplate({
+      isMac: false,
+      panelVisibility: DEFAULT_PANEL_VISIBILITY,
+      onTogglePanel: () => undefined,
+    });
+    const viewMenu = template.find((item) => item.label === "View");
+    const viewItems = getSubmenuItems(viewMenu);
+
+    expect(viewItems.map((item) => item.id)).not.toContain("appearance-toggle");
+    expect(viewItems.map((item) => item.label)).not.toContain(
+      "Use Light Appearance",
+    );
+    expect(viewItems.map((item) => item.label)).not.toContain(
+      "Use Dark Appearance",
+    );
   });
 });
 

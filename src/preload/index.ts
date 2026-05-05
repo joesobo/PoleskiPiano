@@ -7,16 +7,6 @@ contextBridge.exposeInMainWorld("poleskiPiano", {
     chrome: process.versions.chrome,
     electron: process.versions.electron,
   },
-  onThemeToggle: (callback: () => void) => {
-    const listener = (): void => callback();
-
-    ipcRenderer.on("theme:toggle", listener);
-
-    return () => ipcRenderer.removeListener("theme:toggle", listener);
-  },
-  setThemeMode: (themeMode: "dark" | "light") => {
-    ipcRenderer.send("theme:mode-changed", themeMode);
-  },
   onPanelToggle: (callback: (panelId: PanelId) => void) => {
     const listener = (_event: IpcRendererEvent, panelId: PanelId): void =>
       callback(panelId);

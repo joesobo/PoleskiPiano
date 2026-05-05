@@ -5,6 +5,17 @@ import { describe, expect, it } from "vitest";
 
 const styles = readFileSync(join(__dirname, "styles.css"), "utf8");
 
+function getRuleBlock(selector: string): string {
+  const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = styles.match(
+    new RegExp(`(?:^|\\n)${escapedSelector}\\s*\\{(?<block>[^}]*)\\}`, "s"),
+  );
+
+  expect(match).not.toBeNull();
+
+  return match?.groups?.block ?? "";
+}
+
 describe("piano key layering", () => {
   it("keeps active white keys below black keys", () => {
     expect(styles).toMatch(/\.white-keys\s*\{[^}]*z-index:\s*1/s);
@@ -32,9 +43,20 @@ describe("on-screen input styles", () => {
 });
 
 describe("app theme styles", () => {
-  it("defines light theme overrides without a renderer top-bar theme toggle", () => {
+  it("defines light theme overrides with a renderer top-bar theme toggle", () => {
     expect(styles).toMatch(/\.app-shell\[data-theme="light"\]\s*\{/);
-    expect(styles).not.toMatch(/\.theme-toggle/);
+    expect(styles).toMatch(/\.theme-toggle-button\s*\{/);
+  });
+
+  it("gives middle practice panels theme-owned surfaces", () => {
+    expect(getRuleBlock(".app-shell")).toMatch(/--panel-bg:/);
+    expect(getRuleBlock('.app-shell[data-theme="light"]')).toMatch(
+      /--panel-bg:/,
+    );
+    expect(getRuleBlock(".practice-panel")).toMatch(
+      /background:\s*var\(--panel-bg\)/,
+    );
+    expect(getRuleBlock(".falling-notes-stage")).toMatch(/var\(--panel-bg\)/);
   });
 });
 

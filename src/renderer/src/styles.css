@@ -61,6 +61,7 @@ button {
   --top-bar-bg: rgba(28, 27, 26, 0.94);
   --surface-bg: var(--base-950);
   --surface-grid-line: rgba(242, 240, 229, 0.04);
+  --panel-bg: color-mix(in srgb, var(--surface-bg), var(--app-fg) 2%);
   --panel-border: rgba(242, 240, 229, 0.07);
   --border-subtle: rgba(242, 240, 229, 0.08);
   --text-main: var(--base-50);
@@ -86,6 +87,7 @@ button {
   --black-key-bottom: #050505;
   --black-key-text: var(--base-100);
   --black-key-shadow: rgba(0, 0, 0, 0.42);
+  color-scheme: dark;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) 212px;
   min-height: 100vh;
@@ -99,6 +101,7 @@ button {
   --top-bar-bg: rgba(242, 240, 229, 0.94);
   --surface-bg: var(--base-50);
   --surface-grid-line: rgba(16, 15, 15, 0.055);
+  --panel-bg: color-mix(in srgb, var(--surface-bg), var(--app-bg) 62%);
   --panel-border: rgba(16, 15, 15, 0.1);
   --border-subtle: rgba(16, 15, 15, 0.12);
   --text-main: var(--black);
@@ -124,6 +127,7 @@ button {
   --black-key-bottom: var(--black);
   --black-key-text: var(--base-100);
   --black-key-shadow: rgba(16, 15, 15, 0.26);
+  color-scheme: light;
 }
 
 .top-bar {
@@ -193,6 +197,26 @@ button {
   border-radius: inherit;
   background: linear-gradient(90deg, var(--green), var(--yellow), var(--red));
   transition: inline-size 140ms ease-out;
+}
+
+.theme-toggle-button {
+  display: grid;
+  place-items: center;
+  inline-size: 34px;
+  block-size: 34px;
+  border: 1px solid var(--control-border);
+  border-radius: 6px;
+  background: var(--control-bg);
+  color: var(--control-fg);
+  padding: 0;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.theme-toggle-button:hover {
+  background: color-mix(in srgb, var(--control-fg), transparent 92%);
 }
 
 .top-bar-content {
@@ -546,6 +570,7 @@ button {
   min-width: 0;
   min-height: 0;
   border-inline-end: 1px solid var(--panel-border);
+  background: var(--panel-bg);
 }
 
 .panel-kicker {
@@ -845,8 +870,8 @@ button {
   background:
     linear-gradient(
       180deg,
-      color-mix(in srgb, var(--surface-bg), var(--control-fg) 7%),
-      color-mix(in srgb, var(--surface-bg), var(--control-fg) 2%)
+      color-mix(in srgb, var(--panel-bg), var(--control-fg) 7%),
+      color-mix(in srgb, var(--panel-bg), var(--control-fg) 2%)
     );
 }
 

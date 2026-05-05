@@ -61,7 +61,7 @@ PoleskiPiano is a lightweight native desktop piano-learning app for a small 37-k
 - A preview chord is considered inside a selected scale only when all of the chord's notes belong to that scale.
 - MIDI connection is represented in the top bar by a connected/unconnected status light, not the MIDI device name.
 - MIDI connection status and audio activity should sit together as a compact signal cluster on the far left of the top bar.
-- Theme switching is a native app command under the View menu, not a visible control in the practice surface. The command uses Appearance wording.
+- Theme switching is a visible top-bar control in the practice surface so the renderer owns the state path directly. The native View menu does not own appearance switching.
 - Practice Preview reuses the same ghost-note visual language as Chord Preview, but it is sourced from the current Practice Target.
 - When a Practice Song is selected, Practice Preview owns the ghost target surface and the Chord Preview value is reset to None.
 - The top bar keeps Scale, Chord Preview, and Song selectors visible together in the top row. Song sits at the far right.

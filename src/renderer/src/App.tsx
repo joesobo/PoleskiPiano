@@ -1058,18 +1058,6 @@ export function App(): React.ReactElement {
   }, [audioLevel]);
 
   useEffect(() => {
-    return window.poleskiPiano?.onThemeToggle?.(() => {
-      setThemeMode((currentThemeMode) =>
-        currentThemeMode === "dark" ? "light" : "dark",
-      );
-    });
-  }, []);
-
-  useEffect(() => {
-    window.poleskiPiano?.setThemeMode?.(themeMode);
-  }, [themeMode]);
-
-  useEffect(() => {
     return window.poleskiPiano?.onPanelToggle?.(handlePanelToggle);
   }, [handlePanelToggle]);
 
@@ -1181,6 +1169,7 @@ export function App(): React.ReactElement {
         performanceScore={performanceScore}
         isPracticeSongBuilderActive={practiceSongBuilderDraft !== null}
         practiceSongBuilderTitle={practiceSongBuilderDraft?.title ?? null}
+        themeMode={themeMode}
         onScaleChange={setSelectedScale}
         onChordPreviewChange={handleChordPreviewChange}
         onPracticeSongChange={handlePracticeSongChange}
@@ -1197,6 +1186,7 @@ export function App(): React.ReactElement {
         onPracticeRunModeChange={handlePracticeRunModeChange}
         onPracticeSpeedPercentChange={handlePracticeSpeedPercentChange}
         onPracticePlayingChange={handlePracticePlayingChange}
+        onThemeModeChange={setThemeMode}
       />
 
       <main className="practice-surface">
